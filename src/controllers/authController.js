@@ -97,7 +97,10 @@ class AuthController {
    */
   static async login(req, res, next) {
     try {
-      const { phone, code } = req.body;
+      const { phone, code, initialRole } = req.body;
+      
+      // 调试日志：查看接收到的参数
+      console.log('登录接口接收到的参数:', { phone, code, initialRole });
 
       // 验证手机号格式
       if (!SmsService.validatePhone(phone)) {
@@ -114,8 +117,16 @@ class AuthController {
       let user = await User.findByPhone(phone);
       
       if (!user) {
-        // 新用户注册
-        user = await User.createUser({ phone });
+        // 新用户注册：根据前端传递的 initialRole 设置角色
+        const userData = { phone };
+        if (initialRole === 'electrician') {
+          userData.current_role = 'electrician';
+        }
+        console.log('创建新用户，userData:', userData);
+        user = await User.createUser(userData);
+        console.log('新创建的用户信息:', { id: user.id, phone: user.phone, current_role: user.current_role });
+      } else {
+        console.log('老用户登录，忽略 initialRole:', { id: user.id, phone: user.phone, current_role: user.current_role });
       }
 
       // 检查用户状态

@@ -3,6 +3,15 @@ const Joi = require('joi');
 // 直接导出 Joi 对象，与其他 schema 文件保持一致
 module.exports = {
   electricianCertificationSchema: Joi.object({
+    work_types: Joi.string()
+      .pattern(/^(maintenance|installation)(,maintenance|,installation)?$/)
+      .default('maintenance')
+      .required()
+      .messages({
+        'string.pattern.base': '工作类型格式不正确，必须是 maintenance 或 installation 或两者组合',
+        'any.required': '工作类型不能为空'
+      }),
+      
     real_name: Joi.string().min(2).max(50).required()
       .messages({ 'any.required': '真实姓名不能为空' }),
       

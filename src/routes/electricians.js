@@ -18,9 +18,26 @@ const rateLimiter = require('../middleware/rateLimiter');
  */
 router.post(
   '/certification',
+  (req, res, next) => {
+    console.log('📍 路由: POST /api/electricians/certification');
+    console.log('请求头:', req.headers.authorization ? '有Token' : '无Token');
+    next();
+  },
   authenticateToken,
+  (req, res, next) => {
+    console.log('✅ Token验证通过，用户ID:', req.user?.id);
+    next();
+  },
   rateLimiter({ max: 5, windowMs: 60000 }),
+  (req, res, next) => {
+    console.log('✅ 限流检查通过');
+    next();
+  },
   validate(electricianCertificationSchema),
+  (req, res, next) => {
+    console.log('✅ 数据验证通过');
+    next();
+  },
   ElectricianController.submitCertification
 );
 

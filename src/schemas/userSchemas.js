@@ -39,6 +39,13 @@ const login = {
         'string.length': '验证码必须为6位数字',
         'string.pattern.base': '验证码必须为数字',
         'any.required': '验证码不能为空'
+      }),
+    initialRole: Joi.string()
+      .valid('user', 'electrician')
+      .optional()
+      .default('user')
+      .messages({
+        'any.only': '角色必须是 user 或 electrician'
       })
   })
 };

@@ -19,6 +19,13 @@ const ElectricianCertification = sequelize.define('ElectricianCertification', {
     comment: '用户ID，关联users表'
   },
   
+  work_types: {
+    type: DataTypes.STRING(100),
+    allowNull: false,
+    defaultValue: 'maintenance',
+    comment: '从事工作类型：逗号分隔，如：maintenance,installation'
+  },
+  
   real_name: {
     type: DataTypes.STRING(50),
     allowNull: false,
