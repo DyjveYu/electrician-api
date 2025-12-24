@@ -15,24 +15,24 @@ class WechatPayV3Service {
     this.mchId = process.env.WECHAT_MCH_ID || '1733197522';
     this.mchSerialNo = process.env.WECHAT_MCH_SERIAL_NO; // 商户证书序列号
     this.apiV3Key = process.env.WECHAT_API_V3_KEY; // APIv3密钥，在商户平台API安全设置
-    
+
     // 证书路径 - 请根据实际路径修改
     this.privateKeyPath = process.env.WECHAT_PRIVATE_KEY_PATH || '/www/server/cert/wxpay/apiclient_key.pem';
     this.certificatePath = process.env.WECHAT_CERTIFICATE_PATH || '/www/server/cert/wxpay/apiclient_cert.pem';
-    
+
     // 加载私钥（用于请求签名）
     this.privateKey = fs.readFileSync(this.privateKeyPath, 'utf8');
-    
+
     // 基础URL
     this.baseUrl = 'https://api.mch.weixin.qq.com';
     this.baseUrlSandbox = 'https://api.mch.weixin.qq.com/sandboxnew'; // 沙箱环境
-    
+
     // 通知地址
-    this.notifyUrl = process.env.WECHAT_NOTIFY_URL || 'https://www.mijutime.com/api/payments/wechat/notify';
-    
+    this.notifyUrl = process.env.WECHAT_NOTIFY_URL || 'https://electrician.mijutime.com/api/payments/wechat/notify';
+
     // 是否为沙箱环境 - 仅通过 WECHAT_SANDBOX 控制，不再依赖 NODE_ENV
     this.isSandbox = process.env.WECHAT_SANDBOX === 'true';
-    
+
     // 平台证书缓存（需要定期从微信获取）
     this.platformCertificates = {};
 
@@ -46,7 +46,7 @@ class WechatPayV3Service {
     console.log('- 证书文件:', this.certificatePath);
     console.log('- isSandbox:', this.isSandbox);
   }
-  
+
 
   /**
    * 创建JSAPI支付订单
@@ -89,16 +89,16 @@ class WechatPayV3Service {
       // 2. 发送请求到微信支付V3接口
       const url = '/v3/pay/transactions/jsapi';
       const response = await this.request('POST', url, requestData);
-      
+
       if (response.status === 200) {
         const result = response.data;
-        
+
         // 3. 生成小程序支付参数（需要重新签名）
         const payParams = this.generateJsapiPayParams(
           result.prepay_id,
           this.appId
         );
-        
+
         return {
           success: true,
           prepay_id: result.prepay_id,
@@ -122,16 +122,16 @@ class WechatPayV3Service {
     const timeStamp = Math.floor(Date.now() / 1000).toString();
     const nonceStr = this.generateNonceStr(32);
     const packageStr = `prepay_id=${prepayId}`;
-    
+
     // 构建签名字符串（注意参数顺序和大小写）
     const message = `${appId}\n${timeStamp}\n${nonceStr}\n${packageStr}\n`;
-    
+
     // 使用商户私钥进行SHA256-RSA签名
     const sign = crypto.createSign('RSA-SHA256');
     sign.update(message);
     sign.end();
     const paySign = sign.sign(this.privateKey, 'base64');
-    
+
     return {
       timeStamp,
       nonceStr,
@@ -154,20 +154,20 @@ class WechatPayV3Service {
       const nonce = headers['wechatpay-nonce'];
       const timestamp = headers['wechatpay-timestamp'];
       const bodyString = JSON.stringify(body);
-      
+
       // 构建验签字符串
       const verifyString = `${timestamp}\n${nonce}\n${bodyString}\n`;
-      
+
       // 2. 获取平台公钥验证签名（需要先获取平台证书）
       const publicKey = await this.getPlatformPublicKey(serial);
       const verifier = crypto.createVerify('RSA-SHA256');
       verifier.update(verifyString);
       const isValid = verifier.verify(publicKey, signature, 'base64');
-      
+
       if (!isValid) {
         throw new Error('支付通知签名验证失败');
       }
-      
+
       // 3. 处理业务逻辑
       const {
         resource: {
@@ -180,14 +180,14 @@ class WechatPayV3Service {
         trade_state,
         success_time
       } = body;
-      
+
       // 4. 解密资源数据（如果需要获取更多信息）
       const decryptedData = this.decryptAES256GCM(
         ciphertext,
         associated_data,
         resource_nonce
       );
-      
+
       return {
         success: true,
         out_trade_no,
@@ -196,7 +196,7 @@ class WechatPayV3Service {
         success_time,
         decrypted_data: JSON.parse(decryptedData)
       };
-      
+
     } catch (error) {
       console.error('支付通知处理失败:', error);
       return {
@@ -213,33 +213,33 @@ class WechatPayV3Service {
     try {
       const url = '/v3/certificates';
       const response = await this.request('GET', url);
-      
+
       if (response.status === 200) {
         const certificates = response.data.data;
         certificates.forEach(cert => {
           const { serial_no, effective_time, expire_time, encrypt_certificate } = cert;
-          
+
           // 解密证书
           const decrypted = this.decryptAES256GCM(
             encrypt_certificate.ciphertext,
             encrypt_certificate.associated_data,
             encrypt_certificate.nonce
           );
-          
+
           this.platformCertificates[serial_no] = {
             cert: decrypted,
             effective_time,
             expire_time
           };
         });
-        
+
         return this.platformCertificates;
       }
     } catch (error) {
       console.error('获取平台证书失败:', error);
       // 可以在这里添加证书缓存逻辑
     }
-    
+
     return null;
   }
 
@@ -253,16 +253,16 @@ class WechatPayV3Service {
       const certObj = new crypto.X509Certificate(cert);
       return certObj.publicKey.export({ type: 'spki', format: 'pem' });
     }
-    
+
     // 否则重新获取证书
     await this.getPlatformCertificates();
-    
+
     if (this.platformCertificates[serialNo]) {
       const cert = this.platformCertificates[serialNo].cert;
       const certObj = new crypto.X509Certificate(cert);
       return certObj.publicKey.export({ type: 'spki', format: 'pem' });
     }
-    
+
     throw new Error(`未找到序列号为${serialNo}的平台证书`);
   }
 
@@ -271,15 +271,15 @@ class WechatPayV3Service {
    */
   createMockJsapiOrder(orderData) {
     const { out_trade_no, amount, description } = orderData;
-    
+
     console.log(`📱 测试环境创建模拟支付订单: ${out_trade_no}, 金额: ${amount}元, 描述: ${description}`);
-    
+
     // 生成模拟的prepay_id
     const mockPrepayId = `mock_prepay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // 生成支付参数
     const payParams = this.generateJsapiPayParams(mockPrepayId);
-    
+
     return {
       success: true,
       prepay_id: mockPrepayId,
@@ -301,11 +301,11 @@ class WechatPayV3Service {
         amount: { total: 100 }
       };
     }
-    
+
     try {
       const url = `/v3/pay/transactions/out-trade-no/${outTradeNo}?mchid=${this.mchId}`;
       const response = await this.request('GET', url);
-      
+
       return {
         success: true,
         ...response.data
@@ -326,7 +326,7 @@ class WechatPayV3Service {
       amount,
       reason = '用户申请退款'
     } = refundData;
-    
+
     if (this.isSandbox) {
       console.log(`📱 测试环境微信退款: ${out_refund_no}`);
       return {
@@ -334,7 +334,7 @@ class WechatPayV3Service {
         refund_id: `mock_refund_${Date.now()}`
       };
     }
-    
+
     try {
       const requestData = {
         transaction_id: refundData.transaction_id,
@@ -347,10 +347,10 @@ class WechatPayV3Service {
           currency: 'CNY'
         }
       };
-      
+
       const url = '/v3/refund/domestic/refunds';
       const response = await this.request('POST', url, requestData);
-      
+
       return {
         success: true,
         ...response.data
@@ -365,30 +365,30 @@ class WechatPayV3Service {
    * 通用的V3接口请求方法（自动处理签名和认证）
    */
   async request(method, path, data = null) {
-    const url = this.isSandbox ? 
-      `${this.baseUrlSandbox}${path}` : 
+    const url = this.isSandbox ?
+      `${this.baseUrlSandbox}${path}` :
       `${this.baseUrl}${path}`;
-    
+
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonceStr = this.generateNonceStr(32);
     const body = data ? JSON.stringify(data) : '';
-    
+
     // 构建签名串 - 注意：这里应该使用 path 而不是完整 url
     let signString = `${method}\n${path}\n${timestamp}\n${nonceStr}\n${body}\n`;
-    
+
     // 使用商户私钥进行SHA256-RSA签名
     const sign = crypto.createSign('RSA-SHA256');
     sign.update(signString);
     sign.end();
     const signature = sign.sign(this.privateKey, 'base64');
-    
+
     // 构建Authorization头
     const authHeader = this.buildAuthorizationHeader(
       timestamp,
       nonceStr,
       signature
     );
-    
+
     // 配置请求头
     const headers = {
       'Authorization': authHeader,
@@ -396,7 +396,7 @@ class WechatPayV3Service {
       'Accept': 'application/json',
       'User-Agent': `WechatPay-NodeJS/1.0 (${this.mchId})`
     };
-    
+
     // 发送请求
     const config = {
       method,
@@ -404,11 +404,11 @@ class WechatPayV3Service {
       headers,
       timeout: 10000
     };
-    
+
     if (body && method !== 'GET') {
       config.data = body;
     }
-    
+
     try {
       const response = await axios(config);
       return response;
@@ -428,13 +428,13 @@ class WechatPayV3Service {
    */
   buildAuthorizationHeader(timestamp, nonceStr, signature) {
     const mchSerialNo = this.mchSerialNo || this.getCertificateSerialNo();
-    
+
     return `WECHATPAY2-SHA256-RSA2048 ` +
-           `mchid="${this.mchId}",` +
-           `serial_no="${mchSerialNo}",` +
-           `nonce_str="${nonceStr}",` +
-           `timestamp="${timestamp}",` +
-           `signature="${signature}"`;
+      `mchid="${this.mchId}",` +
+      `serial_no="${mchSerialNo}",` +
+      `nonce_str="${nonceStr}",` +
+      `timestamp="${timestamp}",` +
+      `signature="${signature}"`;
   }
 
   /**
@@ -461,16 +461,16 @@ class WechatPayV3Service {
       key,
       Buffer.from(nonce, 'base64')
     );
-    
+
     decipher.setAuthTag(Buffer.from(ciphertext.slice(-16), 'base64'));
     decipher.setAAD(Buffer.from(associatedData, 'utf8'));
-    
+
     const encrypted = Buffer.from(ciphertext.slice(0, -16), 'base64');
     const decrypted = Buffer.concat([
       decipher.update(encrypted),
       decipher.final()
     ]);
-    
+
     return decrypted.toString('utf8');
   }
 
