@@ -6,9 +6,9 @@
 module.exports = (req, res, next) => {
   // 成功响应
   res.success = (data = {}, message = 'success') => {
-    console.log('res.success 被调用，接收的参数:');
-    console.log('- data:', JSON.stringify(data));
-    console.log('- message:', message);
+    // console.log('res.success 被调用，接收的参数:');
+    // console.log('- data:', JSON.stringify(data));
+    // console.log('- message:', message);
 
     const response = {
       code: 200,
@@ -17,7 +17,7 @@ module.exports = (req, res, next) => {
       timestamp: Date.now()
     };
 
-    console.log('准备发送的完整响应:', JSON.stringify(response));
+    // console.log('准备发送的完整响应:', JSON.stringify(response));
 
     res.json(response);
   };
