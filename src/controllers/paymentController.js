@@ -125,7 +125,7 @@ class PaymentController {
       // 根据支付方式处理
       if (payment_method === 'wechat') {
         const wxPayService = new WechatPayV3Service();
-        
+
         // 构建微信支付V3请求数据
         const wechatOrderData = {
           description,
@@ -137,10 +137,10 @@ class PaymentController {
         };
 
         console.log('调用微信支付V3接口，参数:', wechatOrderData);
-        
+
         // 调用V3接口
         const paymentResult = await wxPayService.createJsapiOrder(wechatOrderData);
-        
+
         if (!paymentResult.success) {
           throw new Error(paymentResult.error || '微信支付下单失败');
         }
@@ -219,7 +219,7 @@ class PaymentController {
       }
     } catch (error) {
       console.error('创建支付失败:', error);
-      
+
       // 如果有创建payment记录但支付失败，更新状态
       if (payment && payment.id) {
         await Payment.update({
@@ -227,7 +227,7 @@ class PaymentController {
           failed_reason: error.message.substring(0, 250) // 防止超长
         }, { where: { id: payment.id } });
       }
-      
+
       // 保持错误响应格式
       res.error(error.message || '支付创建失败', 500);
     }
@@ -281,7 +281,7 @@ class PaymentController {
       }, {
         where: { out_trade_no: payment_no }
       });
-      
+
       // 根据支付类型更新订单状态
       const order = await Order.findByPk(payment.order_id);
       if (order) {
@@ -324,50 +324,69 @@ class PaymentController {
    * 微信支付V3回调 - 注意：V3是JSON格式，不是XML！
    */
   static async wechatNotify(req, res, next) {
+    const timestamp = new Date().toISOString();
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`[${timestamp}] 🔔 收到微信支付回调请求`);
+    console.log(`${'='.repeat(80)}`);
+
     try {
       // V3接口回调是JSON格式
       const headers = req.headers;
       const body = req.body; // JSON对象
-      
-      console.log('收到微信支付V3回调:', { 
-        headers: {
-          'wechatpay-signature': headers['wechatpay-signature'],
-          'wechatpay-serial': headers['wechatpay-serial'],
-          'wechatpay-nonce': headers['wechatpay-nonce'],
-          'wechatpay-timestamp': headers['wechatpay-timestamp']
-        },
-        body: body
+
+      console.log('📋 支付请求头信息:', {
+        'wechatpay-signature': headers['wechatpay-signature'] ? '已提供' : '❌ 缺失',
+        'wechatpay-serial': headers['wechatpay-serial'] || '❌ 缺失',
+        'wechatpay-nonce': headers['wechatpay-nonce'] || '❌ 缺失',
+        'wechatpay-timestamp': headers['wechatpay-timestamp'] || '❌ 缺失',
+        'content-type': headers['content-type'],
+        'user-agent': headers['user-agent']
       });
-      
+
+      console.log('📦 请求体:', JSON.stringify(body, null, 2));
+
       const wxPayService = new WechatPayV3Service();
-      
+
       // 处理支付通知（会自动验证签名）
       const notifyResult = await wxPayService.handlePaymentNotify(headers, body);
-      
+
       if (!notifyResult.success) {
         console.error('微信支付V3回调验证失败:', notifyResult.error);
         return res.json(wxPayService.generateFailResponse(notifyResult.error));
       }
-      
-      console.log('微信支付回调验证成功:', notifyResult);
-      
+
+      console.log('✅ 微信支付回调验证成功:', {
+        out_trade_no: notifyResult.out_trade_no,
+        transaction_id: notifyResult.transaction_id,
+        trade_state: notifyResult.trade_state
+      });
+
       // 查找支付记录
+      console.log('🔍 查找支付记录, out_trade_no:', notifyResult.out_trade_no);
       const payment = await Payment.findOne({
         where: { out_trade_no: notifyResult.out_trade_no }
       });
-      
+
       if (!payment) {
-        console.error('支付记录不存在:', notifyResult.out_trade_no);
+        console.error('❌ 支付记录不存在:', notifyResult.out_trade_no);
         return res.json(wxPayService.generateFailResponse('支付记录不存在'));
       }
-      
+
+      console.log('📄 找到支付记录:', {
+        payment_id: payment.id,
+        order_id: payment.order_id,
+        type: payment.type,
+        current_status: payment.status
+      });
+
       // 检查是否已处理过（防止重复通知）
       if (payment.status === 'success') {
         console.log('支付已处理，忽略重复通知:', notifyResult.out_trade_no);
         return res.json(wxPayService.generateSuccessResponse());
       }
-      
+
       // 更新支付状态
+      console.log('💾 更新支付状态为 success...');
       await Payment.update({
         status: 'success',
         transaction_id: notifyResult.transaction_id,
@@ -375,16 +394,24 @@ class PaymentController {
       }, {
         where: { out_trade_no: notifyResult.out_trade_no }
       });
-      
+      console.log('✅ 支付状态更新成功');
+
       // 按支付类型更新订单状态
+      console.log('🔍 查找订单, order_id:', payment.order_id);
       const order = await Order.findByPk(payment.order_id);
       if (order) {
+        console.log('📋 找到订单:', {
+          order_no: order.order_no,
+          current_status: order.status,
+          payment_type: payment.type
+        });
         if (payment.type === 'prepay') {
+          console.log('💰 处理预付款支付成功逻辑...');
           await Order.update({
             status: 'pending',
             prepaid_at: new Date()
           }, { where: { id: payment.order_id } });
-          
+
           await OrderStatusLog.create({
             order_id: payment.order_id,
             to_status: 'pending',
@@ -392,7 +419,7 @@ class PaymentController {
             operator_type: 'user',
             remark: '预付款支付成功，进入待接单'
           });
-          
+
           await Message.create({
             user_id: order.user_id,
             title: '预付款支付成功',
@@ -401,16 +428,22 @@ class PaymentController {
             related_id: order.id,
             to_status: 'unread'
           });
+          console.log('✅ 订单状态已更新为 pending (待接单)');
         } else {
+          console.log('🔧 处理维修费支付成功逻辑...');
           await transitionRepairPaymentSuccess(order, order.user_id);
+          console.log('✅ 订单状态已更新为 in_progress (维修中)');
         }
+      } else {
+        console.error('❌ 订单不存在, order_id:', payment.order_id);
       }
-      
-      console.log('支付回调处理完成:', notifyResult.out_trade_no);
-      
+
+      console.log('🎉 支付回调处理完成:', notifyResult.out_trade_no);
+      console.log(`${'='.repeat(80)}\n`);
+
       // 返回成功响应（V3要求JSON格式）
       res.json(wxPayService.generateSuccessResponse());
-      
+
     } catch (error) {
       console.error('微信支付V3回调处理失败:', error);
       const wxPayService = new WechatPayV3Service();
@@ -429,7 +462,7 @@ class PaymentController {
       let payment = await Payment.findOne({
         where: { out_trade_no: payment_no }
       });
-      
+
       if (!payment) return res.error('支付记录不存在', 404);
       if (payment.user_id !== userId) return res.error('无权限查看此支付', 403);
 
@@ -438,9 +471,9 @@ class PaymentController {
         try {
           const wxPayService = new WechatPayV3Service();
           const queryResult = await wxPayService.queryOrder(payment_no);
-          
+
           console.log('主动查询支付状态结果:', queryResult);
-          
+
           if (queryResult.success && queryResult.trade_state === 'SUCCESS') {
             // 支付成功，更新状态
             await Payment.update({
@@ -448,7 +481,7 @@ class PaymentController {
               transaction_id: queryResult.transaction_id,
               paid_at: new Date()
             }, { where: { out_trade_no: payment_no } });
-            
+
             // 更新订单状态
             const order = await Order.findByPk(payment.order_id);
             if (order) {
@@ -457,7 +490,7 @@ class PaymentController {
                   status: 'pending',
                   prepaid_at: new Date()
                 }, { where: { id: payment.order_id } });
-                
+
                 await OrderStatusLog.create({
                   order_id: payment.order_id,
                   to_status: 'pending',
@@ -465,7 +498,7 @@ class PaymentController {
                   operator_type: 'user',
                   remark: '预付款支付成功，进入待接单'
                 });
-                
+
                 await Message.create({
                   user_id: order.user_id,
                   title: '预付款支付成功',
@@ -482,7 +515,7 @@ class PaymentController {
                   operator_type: 'user',
                   remark: '维修费支付成功'
                 });
-                
+
                 await Message.create({
                   user_id: order.user_id,
                   title: '维修费支付成功',
@@ -493,7 +526,7 @@ class PaymentController {
                 });
               }
             }
-            
+
             // 重新查询更新后的支付记录
             payment = await Payment.findOne({
               where: { out_trade_no: payment_no }
@@ -613,7 +646,7 @@ class PaymentController {
       });
 
       // 这里可以添加自动退款逻辑或者通知管理员处理
-      
+
       res.success({
         message: '退款申请已提交，请等待处理'
       });
