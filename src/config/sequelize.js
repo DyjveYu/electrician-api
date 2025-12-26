@@ -10,17 +10,17 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST,
     port: process.env.DB_PORT || 3306,
     dialect: 'mysql',
-    
+
     pool: {
       max: 10,
       min: 0,
       acquire: 30000,
       idle: 10000
     },
-    
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+
+    logging: false, // process.env.NODE_ENV === 'development' ? console.log : false,
     timezone: '+08:00',
-    
+
     define: {
       underscored: true,
       freezeTableName: true,

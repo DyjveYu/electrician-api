@@ -11,14 +11,14 @@ const path = require('path');
 class WechatPayV3Service {
   constructor() {
     // 基础配置 - 请确保在环境变量中设置这些值
-    this.appId = process.env.WECHAT_APP_ID || 'wx5aa758717e06fc40';
-    this.mchId = process.env.WECHAT_MCH_ID || '1733197522';
+    this.appId = process.env.WECHAT_APP_ID;
+    this.mchId = process.env.WECHAT_MCH_ID;
     this.mchSerialNo = process.env.WECHAT_MCH_SERIAL_NO; // 商户证书序列号
     this.apiV3Key = process.env.WECHAT_API_V3_KEY; // APIv3密钥，在商户平台API安全设置
 
     // 证书路径 - 请根据实际路径修改
-    this.privateKeyPath = process.env.WECHAT_PRIVATE_KEY_PATH || '/www/server/cert/wxpay/apiclient_key.pem';
-    this.certificatePath = process.env.WECHAT_CERTIFICATE_PATH || '/www/server/cert/wxpay/apiclient_cert.pem';
+    this.privateKeyPath = process.env.WECHAT_PRIVATE_KEY_PATH;
+    this.certificatePath = process.env.WECHAT_CERTIFICATE_PATH;
 
     // 加载私钥（用于请求签名）
     this.privateKey = fs.readFileSync(this.privateKeyPath, 'utf8');
@@ -28,7 +28,7 @@ class WechatPayV3Service {
     this.baseUrlSandbox = 'https://api.mch.weixin.qq.com/sandboxnew'; // 沙箱环境
 
     // 通知地址
-    this.notifyUrl = process.env.WECHAT_NOTIFY_URL || 'https://electrician.mijutime.com/api/payments/wechat/notify';
+    this.notifyUrl = process.env.WECHAT_NOTIFY_URL;
 
     // 是否为沙箱环境 - 仅通过 WECHAT_SANDBOX 控制，不再依赖 NODE_ENV
     this.isSandbox = process.env.WECHAT_SANDBOX === 'true';
@@ -45,8 +45,25 @@ class WechatPayV3Service {
     console.log('- 私钥文件:', this.privateKeyPath, this.privateKey ? '✅ 加载成功' : '❌ 加载失败');
     console.log('- 证书文件:', this.certificatePath);
     console.log('- isSandbox:', this.isSandbox);
+
+    // ✅ 新增：启动时异步获取平台证书
+    this.initPlatformCertificates();
   }
 
+  /**
+ * 初始化平台证书（异步执行，不阻塞启动）
+ */
+  async initPlatformCertificates() {
+    try {
+      console.log('🔄 开始获取微信平台证书...');
+      await this.getPlatformCertificates();
+      console.log('✅ 微信平台证书获取成功');
+      console.log('📋 已缓存证书序列号:', Object.keys(this.platformCertificates));
+    } catch (error) {
+      console.error('❌ 获取平台证书失败:', error.message);
+      console.log('⚠️  将在收到回调时重试获取证书');
+    }
+  }
 
   /**
    * 创建JSAPI支付订单
@@ -143,9 +160,9 @@ class WechatPayV3Service {
   }
 
   /**
-   * 处理支付结果通知
-   * V3接口的通知是JSON格式，需要验证签名
-   */
+ * 处理支付结果通知
+ * V3接口的通知是JSON格式，需要验证签名
+ */
   async handlePaymentNotify(headers, body) {
     try {
       // 1. 验证通知签名
@@ -153,12 +170,17 @@ class WechatPayV3Service {
       const serial = headers['wechatpay-serial'];
       const nonce = headers['wechatpay-nonce'];
       const timestamp = headers['wechatpay-timestamp'];
+
+      if (!signature || !serial || !nonce || !timestamp) {
+        throw new Error('缺少必要的签名参数');
+      }
+
       const bodyString = JSON.stringify(body);
 
       // 构建验签字符串
       const verifyString = `${timestamp}\n${nonce}\n${bodyString}\n`;
 
-      // 2. 获取平台公钥验证签名（需要先获取平台证书）
+      // 2. 获取平台公钥验证签名
       const publicKey = await this.getPlatformPublicKey(serial);
       const verifier = crypto.createVerify('RSA-SHA256');
       verifier.update(verifyString);
@@ -168,37 +190,42 @@ class WechatPayV3Service {
         throw new Error('支付通知签名验证失败');
       }
 
-      // 3. 处理业务逻辑
-      const {
-        resource: {
-          ciphertext,
-          associated_data,
-          nonce: resource_nonce
-        },
-        out_trade_no,
-        transaction_id,
-        trade_state,
-        success_time
-      } = body;
+      console.log('✅ 签名验证通过');
 
-      // 4. 解密资源数据（如果需要获取更多信息）
+      // 3. 解密资源数据
+      const { resource } = body;
+      if (!resource) {
+        throw new Error('回调数据缺少resource字段');
+      }
+
+      console.log('🔓 开始解密回调数据...');
       const decryptedData = this.decryptAES256GCM(
-        ciphertext,
-        associated_data,
-        resource_nonce
+        resource.ciphertext,
+        resource.associated_data,
+        resource.nonce
       );
+
+      // 4. 解析解密后的数据
+      const paymentData = JSON.parse(decryptedData);
+
+      console.log('✅ 微信回调数据解密成功:', {
+        out_trade_no: paymentData.out_trade_no,
+        transaction_id: paymentData.transaction_id,
+        trade_state: paymentData.trade_state,
+        trade_state_desc: paymentData.trade_state_desc
+      });
 
       return {
         success: true,
-        out_trade_no,
-        transaction_id,
-        trade_state,
-        success_time,
-        decrypted_data: JSON.parse(decryptedData)
+        out_trade_no: paymentData.out_trade_no,
+        transaction_id: paymentData.transaction_id,
+        trade_state: paymentData.trade_state,
+        success_time: paymentData.success_time,
+        decrypted_data: paymentData
       };
 
     } catch (error) {
-      console.error('支付通知处理失败:', error);
+      console.error('❌ 支付通知处理失败:', error);
       return {
         success: false,
         error: error.message
@@ -211,13 +238,22 @@ class WechatPayV3Service {
    */
   async getPlatformCertificates() {
     try {
+      console.log('📡 正在从微信服务器获取平台证书...');
       const url = '/v3/certificates';
       const response = await this.request('GET', url);
 
       if (response.status === 200) {
         const certificates = response.data.data;
-        certificates.forEach(cert => {
+        console.log(`📜 获取到 ${certificates.length} 个平台证书`);
+
+        certificates.forEach((cert, index) => {
           const { serial_no, effective_time, expire_time, encrypt_certificate } = cert;
+
+          console.log(`📋 证书 ${index + 1}:`, {
+            serial_no,
+            effective_time,
+            expire_time
+          });
 
           // 解密证书
           const decrypted = this.decryptAES256GCM(
@@ -231,13 +267,19 @@ class WechatPayV3Service {
             effective_time,
             expire_time
           };
+
+          console.log(`✅ 证书 ${serial_no} 解密并缓存成功`);
         });
 
         return this.platformCertificates;
       }
     } catch (error) {
-      console.error('获取平台证书失败:', error);
-      // 可以在这里添加证书缓存逻辑
+      console.error('❌ 获取平台证书失败:', error.message);
+      if (error.response) {
+        console.error('响应状态:', error.response.status);
+        console.error('响应数据:', error.response.data);
+      }
+      throw error;
     }
 
     return null;
@@ -247,17 +289,22 @@ class WechatPayV3Service {
    * 获取平台公钥
    */
   async getPlatformPublicKey(serialNo) {
+    console.log(`🔍 查找平台证书，序列号: ${serialNo}`);
+
     // 如果缓存中有且未过期，直接使用
     if (this.platformCertificates[serialNo]) {
+      console.log('✅ 从缓存中找到证书');
       const cert = this.platformCertificates[serialNo].cert;
       const certObj = new crypto.X509Certificate(cert);
       return certObj.publicKey.export({ type: 'spki', format: 'pem' });
     }
 
     // 否则重新获取证书
+    console.log('⚠️  缓存中没有该证书，重新获取...');
     await this.getPlatformCertificates();
 
     if (this.platformCertificates[serialNo]) {
+      console.log('✅ 重新获取后找到证书');
       const cert = this.platformCertificates[serialNo].cert;
       const certObj = new crypto.X509Certificate(cert);
       return certObj.publicKey.export({ type: 'spki', format: 'pem' });
@@ -452,26 +499,44 @@ class WechatPayV3Service {
   }
 
   /**
-   * AES-256-GCM解密（用于解密平台证书和支付通知）
-   */
+ * AES-256-GCM解密（用于解密平台证书和支付通知）
+ * 微信支付V3的加密格式：
+ * - ciphertext: base64编码的 (密文 + 16字节tag)
+ * - nonce: 明文字符串（不是base64）
+ * - associated_data: 明文字符串
+ */
   decryptAES256GCM(ciphertext, associatedData, nonce) {
-    const key = Buffer.from(this.apiV3Key, 'utf8');
-    const decipher = crypto.createDecipheriv(
-      'aes-256-gcm',
-      key,
-      Buffer.from(nonce, 'base64')
-    );
+    try {
+      // APIv3密钥直接作为key（32字节）
+      const key = Buffer.from(this.apiV3Key, 'utf8');
 
-    decipher.setAuthTag(Buffer.from(ciphertext.slice(-16), 'base64'));
-    decipher.setAAD(Buffer.from(associatedData, 'utf8'));
+      // ciphertext是base64编码的（密文+tag）
+      const ciphertextBuffer = Buffer.from(ciphertext, 'base64');
 
-    const encrypted = Buffer.from(ciphertext.slice(0, -16), 'base64');
-    const decrypted = Buffer.concat([
-      decipher.update(encrypted),
-      decipher.final()
-    ]);
+      // 最后16字节是tag，前面是密文
+      const authTag = ciphertextBuffer.slice(-16);
+      const encryptedData = ciphertextBuffer.slice(0, -16);
 
-    return decrypted.toString('utf8');
+      // nonce是明文字符串，不需要base64解码
+      const decipher = crypto.createDecipheriv(
+        'aes-256-gcm',
+        key,
+        Buffer.from(nonce, 'utf8')
+      );
+
+      decipher.setAuthTag(authTag);
+      decipher.setAAD(Buffer.from(associatedData, 'utf8'));
+
+      const decrypted = Buffer.concat([
+        decipher.update(encryptedData),
+        decipher.final()
+      ]);
+
+      return decrypted.toString('utf8');
+    } catch (error) {
+      console.error('❌ AES-256-GCM解密失败:', error);
+      throw new Error(`解密失败: ${error.message}`);
+    }
   }
 
   /**

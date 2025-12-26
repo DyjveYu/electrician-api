@@ -32,7 +32,7 @@ class SmsService {
       /** 测试模式，优先读取 .env 中的配置 */
       const isTestEnv = process.env.SMS_TEST_MODE === 'true'; // 优先读取 .env 中的配置
 
-      console.log('--- SMS Debug Info ---');
+      console.log('--- 短信SMS Debug Info ---');
       console.log('process.env.SMS_TEST_MODE:', process.env.SMS_TEST_MODE, 'Type:', typeof process.env.SMS_TEST_MODE);
       console.log('isTestEnv:', isTestEnv);
       console.log('----------------------');
