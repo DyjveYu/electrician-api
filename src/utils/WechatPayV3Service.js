@@ -420,14 +420,33 @@ class WechatPayV3Service {
     const nonceStr = this.generateNonceStr(32);
     const body = data ? JSON.stringify(data) : '';
 
-    // 构建签名串 - 注意：这里应该使用 path 而不是完整 url
-    let signString = `${method}\n${path}\n${timestamp}\n${nonceStr}\n${body}\n`;
+    // 构建签名串 - 注意每个字段后都有 \n
+    const signString = `${method}\n${path}\n${timestamp}\n${nonceStr}\n${body}\n`;
 
-    // 使用商户私钥进行SHA256-RSA签名
+    // 详细日志
+    console.log('\n' + '='.repeat(60));
+    console.log('📡 微信支付V3 API 请求');
+    console.log('='.repeat(60));
+    console.log('URL:', url);
+    console.log('Method:', method);
+    console.log('Path:', path);
+    console.log('Timestamp:', timestamp);
+    console.log('NonceStr:', nonceStr);
+    console.log('Body:', body || '(空)');
+    console.log('-'.repeat(60));
+    console.log('签名原串（每行一个字段）:');
+    console.log(signString.split('\n').map((line, i) =>
+      `  ${i + 1}. ${line || '(空行)'}`
+    ).join('\n'));
+    console.log('-'.repeat(60));
+
+    // 签名
     const sign = crypto.createSign('RSA-SHA256');
     sign.update(signString);
     sign.end();
     const signature = sign.sign(this.privateKey, 'base64');
+
+    console.log('签名结果:', signature.substring(0, 60) + '...');
 
     // 构建Authorization头
     const authHeader = this.buildAuthorizationHeader(
@@ -435,6 +454,9 @@ class WechatPayV3Service {
       nonceStr,
       signature
     );
+
+    console.log('Authorization:', authHeader.substring(0, 120) + '...');
+    console.log('='.repeat(60) + '\n');
 
     // 配置请求头
     const headers = {
@@ -458,9 +480,10 @@ class WechatPayV3Service {
 
     try {
       const response = await axios(config);
+      console.log('✅ 请求成功:', response.status);
       return response;
     } catch (error) {
-      console.error('微信支付V3接口请求失败:', {
+      console.error('❌ 请求失败:', {
         url,
         method,
         status: error.response?.status,
@@ -474,7 +497,23 @@ class WechatPayV3Service {
    * 构建Authorization请求头
    */
   buildAuthorizationHeader(timestamp, nonceStr, signature) {
-    const mchSerialNo = this.mchSerialNo || this.getCertificateSerialNo();
+    // 获取商户证书序列号
+    let mchSerialNo = this.mchSerialNo;
+
+    // 如果环境变量没有，从证书文件读取
+    if (!mchSerialNo) {
+      mchSerialNo = this.getCertificateSerialNo();
+    }
+
+    // 规范化格式：去除冒号、转大写
+    mchSerialNo = mchSerialNo.replace(/:/g, '').toUpperCase();
+
+    console.log('📋 Authorization参数:');
+    console.log('  - mchid:', this.mchId);
+    console.log('  - serial_no:', mchSerialNo);
+    console.log('  - timestamp:', timestamp);
+    console.log('  - nonce_str:', nonceStr);
+    console.log('  - signature:', signature.substring(0, 50) + '...');
 
     return `WECHATPAY2-SHA256-RSA2048 ` +
       `mchid="${this.mchId}",` +
