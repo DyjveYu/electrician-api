@@ -12,19 +12,19 @@ const Address = sequelize.define('Address', {
     autoIncrement: true,
     comment: '地址ID'
   },
-  
+
   user_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
     comment: '用户ID'
   },
-  
+
   contact_name: {
     type: DataTypes.STRING(50),
     allowNull: false,
     comment: '联系人姓名'
   },
-  
+
   contact_phone: {
     type: DataTypes.STRING(11),
     allowNull: false,
@@ -33,49 +33,55 @@ const Address = sequelize.define('Address', {
       is: /^1[3-9]\d{9}$/
     }
   },
-  
+
   province: {
     type: DataTypes.STRING(50),
     allowNull: false,
     comment: '省份'
   },
-  
+
   city: {
     type: DataTypes.STRING(50),
     allowNull: false,
     comment: '城市'
   },
-  
+
   district: {
     type: DataTypes.STRING(50),
     allowNull: false,
     comment: '区县'
   },
-  
+
   detail_address: {
     type: DataTypes.STRING(255),
     allowNull: false,
     comment: '详细地址'
   },
-  
+
+  location_name: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    comment: '位置名称（如小区/大厦名）'
+  },
+
   longitude: {
     type: DataTypes.DECIMAL(10, 7),
     allowNull: true,
     comment: '经度'
   },
-  
+
   latitude: {
     type: DataTypes.DECIMAL(10, 7),
     allowNull: true,
     comment: '纬度'
   },
-  
+
   is_default: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
     comment: '是否默认地址'
   }
-  
+
 }, {
   tableName: 'user_addresses',
   timestamps: true,
@@ -90,7 +96,7 @@ const Address = sequelize.define('Address', {
  * @param {number|Object} id - 地址ID或地址对象
  * @returns {Promise<Address|null>} - 返回地址对象或null
  */
-Address.getById = async function(id) {
+Address.getById = async function (id) {
   // 如果传入的是地址对象，直接返回
   if (typeof id === 'object' && id !== null) {
     return id;
@@ -105,33 +111,33 @@ Address.getById = async function(id) {
  * @param {number} userId - 用户ID
  * @returns {Promise<boolean>} - 返回操作是否成功
  */
-Address.setDefault = async function(id, userId) {
+Address.setDefault = async function (id, userId) {
   try {
     // 开启事务
     const transaction = await sequelize.transaction();
-    
+
     try {
       // 1. 先将该用户的所有地址设为非默认
       await this.update(
         { is_default: false },
-        { 
+        {
           where: { user_id: userId },
           transaction
         }
       );
-      
+
       // 2. 将指定地址设为默认
       const [affectedRows] = await this.update(
         { is_default: true },
-        { 
+        {
           where: { id, user_id: userId },
           transaction
         }
       );
-      
+
       // 提交事务
       await transaction.commit();
-      
+
       return affectedRows > 0;
     } catch (error) {
       // 回滚事务
@@ -149,7 +155,7 @@ Address.setDefault = async function(id, userId) {
  * @param {number} id - 地址ID
  * @returns {Promise<boolean>} - 返回操作是否成功
  */
-Address.delete = async function(id) {
+Address.delete = async function (id) {
   try {
     const result = await this.destroy({
       where: { id }
@@ -168,7 +174,7 @@ Address.delete = async function(id) {
  * @param {number} limit - 每页数量，默认为10
  * @returns {Promise<Address[]>} - 返回地址列表
  */
-Address.getByUserId = async function(userId, page = 1, limit = 10) {
+Address.getByUserId = async function (userId, page = 1, limit = 10) {
   const offset = (page - 1) * limit;
   return await this.findAll({
     where: { user_id: userId },
@@ -186,7 +192,7 @@ Address.getByUserId = async function(userId, page = 1, limit = 10) {
  * @param {number} userId - 用户ID
  * @returns {Promise<number>} - 返回地址总数
  */
-Address.getCountByUserId = async function(userId) {
+Address.getCountByUserId = async function (userId) {
   return await this.count({
     where: { user_id: userId }
   });
@@ -197,7 +203,7 @@ Address.getCountByUserId = async function(userId) {
  * @param {number} userId - 用户ID
  * @returns {Promise<boolean>} - 返回操作是否成功
  */
-Address.clearDefaultByUserId = async function(userId) {
+Address.clearDefaultByUserId = async function (userId) {
   try {
     await this.update(
       { is_default: false },
@@ -216,7 +222,7 @@ Address.clearDefaultByUserId = async function(userId) {
  * @param {Object} updateData - 更新数据
  * @returns {Promise<boolean>} - 返回操作是否成功
  */
-Address.updateById = async function(id, updateData) {
+Address.updateById = async function (id, updateData) {
   try {
     const [affectedRows] = await this.update(
       updateData,

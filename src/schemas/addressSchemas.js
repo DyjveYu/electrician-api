@@ -66,6 +66,14 @@ const addressSchemas = {
           'string.empty': '详细地址不能为空',
           'string.max': '详细地址不能超过255个字符'
         }),
+      locationName: Joi.string().trim().min(1).max(100).allow('', null)
+        .messages({
+          'string.max': '位置名称不能超过100个字符'
+        }),
+      location_name: Joi.string().trim().min(1).max(100).allow('', null)
+        .messages({
+          'string.max': '位置名称不能超过100个字符'
+        }),
       longitude: Joi.number().min(-180).max(180).allow(null).default(null)
         .messages({
           'number.min': '经度值无效',
@@ -82,9 +90,9 @@ const addressSchemas = {
         Joi.string().valid('true', 'false')
       ).default(false)
     })
-    .or('contactName', 'contact_name')
-    .or('contactPhone', 'contact_phone')
-    .or('detailAddress', 'detail')
+      .or('contactName', 'contact_name')
+      .or('contactPhone', 'contact_phone')
+      .or('detailAddress', 'detail')
   },
 
   // 更新地址
@@ -121,6 +129,14 @@ const addressSchemas = {
         .messages({
           'string.empty': '详细地址不能为空',
           'string.max': '详细地址不能超过255个字符'
+        }),
+      locationName: Joi.string().trim().min(1).max(100).allow('', null)
+        .messages({
+          'string.max': '位置名称不能超过100个字符'
+        }),
+      location_name: Joi.string().trim().min(1).max(100).allow('', null)
+        .messages({
+          'string.max': '位置名称不能超过100个字符'
         }),
       longitude: Joi.number().min(-180).max(180).allow(null)
         .messages({

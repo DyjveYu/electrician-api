@@ -54,7 +54,7 @@ class AddressController {
       }
 
       const address = await Address.getById(parseInt(id));
-      
+
       if (!address) {
         return res.error('地址不存在', 404);
       }
@@ -77,7 +77,7 @@ class AddressController {
     try {
       console.log('createAddress - req.body:', JSON.stringify(req.body, null, 2));
       console.log('createAddress - req.user:', JSON.stringify(req.user, null, 2));
-      
+
       const Address = require('../models/Address');
       const userId = req.user.id;
       const addressData = req.body;
@@ -97,16 +97,17 @@ class AddressController {
         city: addressData.city,
         district: addressData.district,
         detail_address: addressData.detailAddress || addressData.detail,
+        location_name: addressData.locationName || addressData.location_name || null,
         longitude: addressData.longitude || null,
         latitude: addressData.latitude || null,
         // 转换字符串 "true" 为布尔值
-        is_default: addressData.isDefault === true || 
-                    addressData.is_default === true || 
-                    addressData.isDefault === "true" || 
-                    addressData.is_default === "true" || 
-                    false
+        is_default: addressData.isDefault === true ||
+          addressData.is_default === true ||
+          addressData.isDefault === "true" ||
+          addressData.is_default === "true" ||
+          false
       };
-      
+
       console.log('createAddress - dbAddressData before create:', JSON.stringify(dbAddressData, null, 2));
 
       // 如果设置为默认地址，先清除其他默认地址
@@ -115,10 +116,10 @@ class AddressController {
       }
 
       const addressId = await Address.create(dbAddressData);
-      
+
       if (addressId) {
         const newAddress = await Address.getById(addressId);
-        res.success({ 
+        res.success({
           message: '地址创建成功',
           address: newAddress
         });
@@ -170,13 +171,14 @@ class AddressController {
         city: updateData.city,
         district: updateData.district,
         detail_address: updateData.detailAddress || updateData.detail,
+        location_name: updateData.locationName || updateData.location_name || null,
         longitude: updateData.longitude || null,
         latitude: updateData.latitude || null,
-        is_default: updateData.isDefault === true || 
-                    updateData.is_default === true || 
-                    updateData.isDefault === "true" || 
-                    updateData.is_default === "true" || 
-                    false
+        is_default: updateData.isDefault === true ||
+          updateData.is_default === true ||
+          updateData.isDefault === "true" ||
+          updateData.is_default === "true" ||
+          false
       };
 
       // 如果设置为默认地址，先清除其他默认地址
@@ -185,10 +187,10 @@ class AddressController {
       }
 
       const success = await Address.updateById(parseInt(id), dbUpdateData);
-      
+
       if (success) {
         const updatedAddress = await Address.getById(parseInt(id));
-        res.success({ 
+        res.success({
           message: '地址更新成功',
           address: updatedAddress
         });
@@ -226,7 +228,7 @@ class AddressController {
       }
 
       const success = await Address.delete(parseInt(id));
-      
+
       if (success) {
         res.success({ message: '地址删除成功' });
       } else {
@@ -263,7 +265,7 @@ class AddressController {
       }
 
       const success = await Address.setDefault(parseInt(id), userId);
-      
+
       if (success) {
         res.success({ message: '默认地址设置成功' });
       } else {
@@ -280,7 +282,7 @@ class AddressController {
   static async getRegions(req, res, next) {
     try {
       console.log('=== getRegions method called ===');
-      
+
       // 尝试多种方式加载Address模块
       let AddressModel;
       try {
@@ -290,27 +292,27 @@ class AddressController {
         console.error('Error requiring Address:', requireError);
         return res.error('模块加载失败', 500);
       }
-      
+
       if (!AddressModel) {
         console.error('AddressModel is null or undefined');
         return res.error('Address模块未定义', 500);
       }
-      
+
       if (typeof AddressModel.getRegions !== 'function') {
         console.error('getRegions method not found on AddressModel');
         console.log('Available methods:', Object.getOwnPropertyNames(AddressModel));
         return res.error('getRegions方法不存在', 500);
       }
-      
+
       console.log('AddressModel validation passed');
-      
+
       const { parent_code = null, level = 1 } = req.query;
       console.log('Query params:', { parent_code, level });
 
       // 验证请求参数
-      const { error } = addressSchemas.getRegions.query.validate({ 
-        parentCode: parent_code || '', 
-        level: parseInt(level) 
+      const { error } = addressSchemas.getRegions.query.validate({
+        parentCode: parent_code || '',
+        level: parseInt(level)
       });
       if (error) {
         console.log('Validation error:', error.details[0].message);
@@ -318,17 +320,17 @@ class AddressController {
       }
 
       console.log('Starting database operations...');
-      
+
       // 确保regions表存在并有数据
       await AddressModel.createRegionsTable();
       console.log('Regions table created/verified');
-      
+
       await AddressModel.initRegionsData();
       console.log('Regions data initialized');
 
       const regions = await AddressModel.getRegions(parent_code, parseInt(level));
       console.log('Regions retrieved:', regions.length, 'items');
-      
+
       res.success({ regions });
     } catch (error) {
       console.error('Error in getRegions:', error);
@@ -346,9 +348,9 @@ class AddressController {
       const userId = req.user.id;
 
       const defaultAddress = await Address.getDefaultByUserId(userId);
-      
-      res.success({ 
-        address: defaultAddress 
+
+      res.success({
+        address: defaultAddress
       });
     } catch (error) {
       next(error);
