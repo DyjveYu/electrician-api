@@ -5,6 +5,7 @@ const { authenticateToken } = require('../middleware/auth');
 
 // 获取上传中间件
 const uploadAvatar = UploadController.getUploadMiddleware();
+const uploadCertification = UploadController.getCertificationUploadMiddleware();
 
 /**
  * @swagger
@@ -70,6 +71,41 @@ router.post('/avatar', authenticateToken, (req, res) => {
       return res.error(err.message || '上传失败', 400);
     }
     UploadController.uploadAvatar(req, res);
+  });
+});
+
+/**
+ * @swagger
+ * /api/upload/certification:
+ *   post:
+ *     summary: 上传认证证件
+ *     tags: [Upload]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               certification:
+ *                 type: string
+ *                 format: binary
+ *                 description: 证件图片
+ *     responses:
+ *       200:
+ *         description: 上传成功
+ */
+router.post('/certification', authenticateToken, (req, res) => {
+  uploadCertification.single('certification')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.error('文件大小不能超过10MB', 413);
+      }
+      return res.error(err.message || '上传失败', 400);
+    }
+    UploadController.uploadCertification(req, res);
   });
 });
 

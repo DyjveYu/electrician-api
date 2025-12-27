@@ -52,6 +52,38 @@ class UploadController {
     });
   }
 
+  // 配置multer存储 - 证件
+  static getCertificationStorage() {
+    return multer.diskStorage({
+      destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, '../../uploads/certifications');
+        // 确保目录存在
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+      },
+      filename: (req, file, cb) => {
+        // 生成唯一文件名
+        const uniqueSuffix = crypto.randomBytes(16).toString('hex');
+        const ext = path.extname(file.originalname);
+        cb(null, `cert_${uniqueSuffix}${ext}`);
+      }
+    });
+  }
+
+  // 配置multer - 证件
+  static getCertificationUploadMiddleware() {
+    return multer({
+      storage: this.getCertificationStorage(),
+      fileFilter: this.fileFilter,
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB
+        files: 1
+      }
+    });
+  }
+
   // 上传头像
   static async uploadAvatar(req, res) {
     try {
@@ -61,7 +93,7 @@ class UploadController {
 
       // 构建文件URL
       const fileUrl = `/uploads/avatars/${req.file.filename}`;
-      
+
       res.success({
         url: fileUrl,
         filename: req.file.filename,
@@ -70,6 +102,28 @@ class UploadController {
       }, '头像上传成功');
     } catch (error) {
       console.error('上传头像错误:', error);
+      res.error('上传失败');
+    }
+  }
+
+  // 上传证件
+  static async uploadCertification(req, res) {
+    try {
+      if (!req.file) {
+        return res.error('请选择要上传的图片', 400);
+      }
+
+      // 构建文件URL
+      const fileUrl = `/uploads/certifications/${req.file.filename}`;
+
+      res.success({
+        url: fileUrl,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size
+      }, '证件上传成功');
+    } catch (error) {
+      console.error('上传证件错误:', error);
       res.error('上传失败');
     }
   }
@@ -83,7 +137,7 @@ class UploadController {
 
       // 构建文件URL
       const fileUrl = `/uploads/${req.file.filename}`;
-      
+
       res.success({
         url: fileUrl,
         filename: req.file.filename,
