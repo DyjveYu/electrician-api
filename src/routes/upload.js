@@ -3,6 +3,8 @@ const router = express.Router();
 const UploadController = require('../controllers/uploadController');
 const { authenticateToken } = require('../middleware/auth');
 
+console.log('🔄 [Routes] 加载上传路由模块 (upload.js)');
+
 // 获取上传中间件
 const uploadAvatar = UploadController.getUploadMiddleware();
 const uploadCertification = UploadController.getCertificationUploadMiddleware();
@@ -98,6 +100,7 @@ router.post('/avatar', authenticateToken, (req, res) => {
  *         description: 上传成功
  */
 router.post('/certification', authenticateToken, (req, res) => {
+  console.log('📥 收到证件上传请求:', req.originalUrl);
   uploadCertification.single('certification')(req, res, (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {

@@ -81,6 +81,8 @@ app.use(errorHandler);
 // 启动服务器
 app.listen(PORT, () => {
   console.log(`🚀 服务器启动成功，端口: ${PORT}`);
+  console.log(`📅 启动时间: ${new Date().toISOString()}`);
+  console.log(`📢 路由检查: /api/upload/certification 路由应当已加载`);
   console.log(`📖 API文档: http://localhost:${PORT}/api/v1`);
   console.log(`🏥 健康检查: http://localhost:${PORT}/health`);
   // 启动预付款超时关闭任务（临时停用以避免启动报错）
