@@ -34,7 +34,7 @@ const upload = multer({
     const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    
+
     if (mimetype && extname) {
       return cb(null, true);
     } else {
@@ -97,5 +97,29 @@ router.get('/search',
 router.get('/stats',
   SystemController.getPlatformStats
 );
+
+// 调试：检查文件是否存在（仅用于调试）
+router.get('/check-file', async (req, res) => {
+  const filePath = req.query.path;
+  if (!filePath) return res.error('缺少path参数');
+
+  // 防止路径遍历攻击（简单防御）
+  if (filePath.includes('..') && !filePath.includes('uploads')) {
+    return res.error('非法路径');
+  }
+
+  const absolutePath = path.join(__dirname, '../../', filePath.startsWith('/') ? filePath.substring(1) : filePath);
+
+  const fs = require('fs');
+  const exists = fs.existsSync(absolutePath);
+
+  res.success({
+    exists,
+    queryPath: filePath,
+    resolvedPath: absolutePath,
+    cwd: process.cwd(),
+    __dirname: __dirname
+  });
+});
 
 module.exports = router;
