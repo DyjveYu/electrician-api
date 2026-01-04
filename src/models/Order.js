@@ -114,7 +114,7 @@ const Order = sequelize.define('Order', {
   },
   
   status: {
-    type: DataTypes.ENUM('pending_payment', 'pending', 'accepted', 'in_progress', 'pending_review', 'completed', 'pending_repair_payment', 'paid', 'cancelled', 'cancel_pending', 'closed'),
+    type: DataTypes.ENUM('pending_payment', 'pending', 'accepted', 'in_progress', 'pending_review', 'completed', 'pending_repair_payment', 'paid', 'cancelled', 'cancel_pending', 'closed', 'settled'),
     defaultValue: 'pending_payment',
     comment: '工单状态'
   },

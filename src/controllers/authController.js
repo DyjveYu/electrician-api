@@ -123,7 +123,7 @@ class AuthController {
 
       if (!user) {
         // 新用户注册：根据前端传递的 initialRole 设置角色
-        const userData = { phone };
+        const userData = { phone, openid }; // 保存 openid
         if (initialRole === 'electrician') {
           userData.current_role = 'electrician';
         }
@@ -132,6 +132,12 @@ class AuthController {
         console.log('新创建的用户信息:', { id: user.id, phone: user.phone, current_role: user.current_role });
       } else {
         console.log('老用户登录，忽略 initialRole:', { id: user.id, phone: user.phone, current_role: user.current_role });
+        
+        // 如果是老用户，更新 openid (如果传了的话)
+        if (openid && user.openid !== openid) {
+          await user.update({ openid });
+          console.log(`更新用户 ${user.id} 的 OpenID`);
+        }
       }
 
       // 检查用户状态

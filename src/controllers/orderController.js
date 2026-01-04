@@ -743,9 +743,74 @@ class OrderController {
 
       // 开始事务并更新评价与状态
       const transaction = await sequelize.transaction();
+      let transferSuccess = false; // 标记转账是否成功
+
       try {
+        let nextStatus = 'completed';
+        let statusRemark = '用户完成评价，订单已完成';
+
+        // 5星评价且有电工接单 -> 触发转账
+        if (Number(rating) === 5 && order.electrician_id) {
+          try {
+            // 1. 获取电工信息（OpenID）
+            const electrician = await User.findByPk(order.electrician_id);
+            if (electrician && electrician.openid) {
+              // 2. 计算转账金额（统计该订单所有成功支付的金额：预付款+维修费）
+              const paidPayments = await Payment.findAll({
+                where: {
+                  order_id: order.id,
+                  status: 'success',
+                  type: { [Op.in]: ['prepay', 'repair'] }
+                }
+              });
+
+              const totalAmount = paidPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+              if (totalAmount > 0) {
+                // 3. 发起转账
+                const wechatPayService = new WechatPayV3Service();
+                const transferResult = await wechatPayService.createTransfer({
+                  out_batch_no: `TR_${order.order_no}_${Date.now()}`,
+                  batch_name: `订单${order.order_no}结算`,
+                  batch_remark: '用户五星好评自动结算',
+                  total_amount: totalAmount,
+                  openid: electrician.openid
+                });
+
+                if (transferResult.success) {
+                  // 转账成功，状态改为已结算
+                  nextStatus = 'settled';
+                  statusRemark = '用户五星好评，系统自动转账成功，订单已结算';
+                  transferSuccess = true;
+
+                  // 记录转账记录
+                  await Payment.create({
+                    order_id: order.id,
+                    user_id: order.user_id, // 记录为用户发起的（间接）
+                    amount: totalAmount,
+                    payment_method: 'wechat',
+                    type: 'transfer',
+                    status: 'success',
+                    out_trade_no: transferResult.out_batch_no, // 使用批次号作为订单号
+                    transaction_id: transferResult.batch_id,
+                    paid_at: now
+                  }, { transaction });
+                }
+              } else {
+                console.warn(`订单 ${order.id} 支付总额为0，跳过转账`);
+              }
+            } else {
+              console.warn(`电工 ${order.electrician_id} 未绑定OpenID，无法转账`);
+            }
+          } catch (transferError) {
+            console.error('自动转账失败:', transferError);
+            // 转账失败，状态保持 completed，记录错误日志，不阻断评价流程
+            // 可以在此处记录系统消息通知管理员或记录专门的错误日志表
+          }
+        }
+
         await order.update({
-          status: 'completed',
+          status: nextStatus,
           completed_at: now,
           reviewed_at: now
         }, { transaction });
@@ -762,18 +827,22 @@ class OrderController {
         await OrderStatusLog.create({
           order_id: order.id,
           from_status: 'pending_review',
-          to_status: 'completed',
+          to_status: nextStatus,
           operator_id: userId,
           operator_type: 'user',
-          remark: '用户完成评价，订单已完成'
+          remark: statusRemark
         }, { transaction });
 
         // 通知电工订单完成且用户已评价
         if (order.electrician_id) {
+          const msgContent = transferSuccess
+            ? `工单 ${order.order_no} 用户五星好评，资金已自动结算至您的零钱。`
+            : `工单 ${order.order_no} 用户已完成评价，订单关闭。`;
+
           await Message.create({
             user_id: order.electrician_id,
-            title: '订单已完成',
-            content: `工单 ${order.order_no} 用户已完成评价，订单关闭。`,
+            title: transferSuccess ? '订单已结算' : '订单已完成',
+            content: msgContent,
             type: 'order',
             reference_id: order.id,
             is_read: false,
@@ -783,7 +852,7 @@ class OrderController {
 
         await transaction.commit();
         return res.success({
-          message: '评价成功，订单已完成',
+          message: transferSuccess ? '评价成功，资金已结算给电工' : '评价成功，订单已完成',
           order_id: order.id
         });
       } catch (err) {

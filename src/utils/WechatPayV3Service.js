@@ -319,6 +319,61 @@ class WechatPayV3Service {
   }
 
   /**
+   * 发起商家转账到零钱 (V3)
+   */
+  async createTransfer(transferData) {
+    const {
+      out_batch_no,
+      batch_name,
+      batch_remark,
+      total_amount,
+      openid
+    } = transferData;
+
+    if (this.isSandbox) {
+      console.log(`📱 测试环境商家转账: ${out_batch_no}, 金额: ${total_amount}元, OpenID: ${openid}`);
+      return {
+        success: true,
+        out_batch_no,
+        batch_id: `mock_batch_${Date.now()}`,
+        mock: true
+      };
+    }
+
+    try {
+      const requestData = {
+        appid: this.appId,
+        out_batch_no,
+        batch_name,
+        batch_remark,
+        total_amount: Math.round(total_amount * 100), // 单位：分
+        total_num: 1,
+        transfer_detail_list: [
+          {
+            out_detail_no: `${out_batch_no}_01`,
+            transfer_amount: Math.round(total_amount * 100),
+            transfer_remark: batch_remark,
+            openid
+          }
+        ]
+      };
+
+      // 注意：该接口通常需要请求签名（已封装在 request 方法中）
+      // 且需要在商户平台开启“商家转账到零钱”并配置IP白名单
+      const url = '/v3/transfer/batches';
+      const response = await this.request('POST', url, requestData);
+
+      return {
+        success: true,
+        ...response.data
+      };
+    } catch (error) {
+      console.error('商家转账失败:', error.response?.data || error.message);
+      throw new Error(`转账失败: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  /**
    * 通用V3接口请求方法
    */
   async request(method, path, data = null) {

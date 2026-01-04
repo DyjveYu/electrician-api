@@ -26,6 +26,13 @@ const User = sequelize.define('User', {
       is: /^1[3-9]\d{9}$/
     }
   },
+
+  openid: {
+    type: DataTypes.STRING(64),
+    allowNull: true,
+    unique: true,
+    comment: '微信OpenID'
+  },
   
   nickname: {
     type: DataTypes.STRING(50),

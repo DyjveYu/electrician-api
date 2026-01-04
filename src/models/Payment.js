@@ -38,10 +38,10 @@ const Payment = sequelize.define('Payment', {
   },
 
   type: {
-    type: DataTypes.ENUM('prepay', 'repair'),
+    type: DataTypes.ENUM('prepay', 'repair', 'transfer'),
     defaultValue: 'prepay',
     allowNull: false,
-    comment: '支付类型（预付款/维修费）'
+    comment: '支付类型（预付款/维修费/转账）'
   },
   
   transaction_id: {
