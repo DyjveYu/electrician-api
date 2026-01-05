@@ -97,10 +97,10 @@ class AuthController {
    */
   static async login(req, res, next) {
     try {
-      const { phone, code, initialRole } = req.body;
+      const { phone, code, initialRole, openid } = req.body;
 
       // 调试日志：查看接收到的参数
-      console.log('登录接口接收到的参数:', { phone, code, initialRole });
+      console.log('登录接口接收到的参数:', { phone, code, initialRole, openid });
 
       // 验证手机号格式
       if (!SmsService.validatePhone(phone)) {
@@ -123,7 +123,12 @@ class AuthController {
 
       if (!user) {
         // 新用户注册：根据前端传递的 initialRole 设置角色
-        const userData = { phone, openid }; // 保存 openid
+        // 只有当 openid 是有效非空字符串时才保存
+        const userData = { phone };
+        if (openid && openid !== '') {
+            userData.openid = openid;
+        }
+        
         if (initialRole === 'electrician') {
           userData.current_role = 'electrician';
         }
@@ -134,9 +139,19 @@ class AuthController {
         console.log('老用户登录，忽略 initialRole:', { id: user.id, phone: user.phone, current_role: user.current_role });
         
         // 如果是老用户，更新 openid (如果传了的话)
-        if (openid && user.openid !== openid) {
-          await user.update({ openid });
-          console.log(`更新用户 ${user.id} 的 OpenID`);
+        // 注意：空字符串 '' 也会被视为有值传入，需要特殊处理
+        if (openid !== undefined && openid !== null) {
+          if (openid === '') {
+             // 如果传入空字符串，不做任何操作，或者根据业务需求决定是否清除
+             console.log(`[Auth Debug] Empty OpenID provided for User ${user.id}, skipping update`);
+          } else if (user.openid !== openid) {
+             await user.update({ openid });
+             console.log(`[Auth Debug] Updated User ${user.id} OpenID to: ${openid}`);
+          } else {
+             console.log(`[Auth Debug] User ${user.id} already has correct OpenID: ${openid}`);
+          }
+        } else {
+            console.log(`[Auth Debug] No OpenID provided for User ${user.id}`);
         }
       }
 

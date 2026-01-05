@@ -9,6 +9,7 @@ const AuthController = require('../controllers/authController');
 // 错误导入：const { validate } = require('../middleware/validation');
 const validate = require('../middleware/validation');
 const userSchemas = require('../schemas/userSchemas');
+// Force reload comment: 2026-01-04 - Reload V5 (Fix Empty OpenID Logic)
 const { authenticateToken, optionalAuth } = require('../middleware/auth');
 const rateLimiter = require('../middleware/rateLimiter');
 

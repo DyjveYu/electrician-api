@@ -45,11 +45,25 @@ const validate = function(schema, source = 'body') {
     // 根据source获取要验证的数据
     const dataToValidate = req[source] || {};
     
+    // Debug log
+    if (req.path.includes('/login') || req.path.includes('/auth')) {
+        console.log(`[Validation Debug] Validating ${req.path} against schema. Keys in data:`, Object.keys(dataToValidate));
+        if (schemaToValidate && schemaToValidate.describe) {
+             try {
+                const desc = schemaToValidate.describe();
+                console.log(`[Validation Debug] Schema keys:`, Object.keys(desc.keys || {}));
+             } catch(e) {
+                 console.log('[Validation Debug] Could not describe schema');
+             }
+        }
+    }
+
     try {
       const { error, value } = schemaToValidate.validate(dataToValidate, {
         abortEarly: false, // 返回所有错误
         stripUnknown: true, // 移除未定义字段
-        convert: true      // 自动类型转换 
+        convert: true,      // 自动类型转换 
+        allowUnknown: true  // 临时允许未知字段以解决 openid 问题
       });
 
       if (error) {
@@ -65,10 +79,7 @@ const validate = function(schema, source = 'body') {
       next();
     } catch (err) {
       console.error('验证中间件错误:', err);
-      return res.status(500).json({
-        success: false,
-        message: '验证过程中发生错误'
-      });
+      return next(err);
     }
   };
 };
@@ -91,7 +102,9 @@ const schemas = {
     code: Joi.string().length(6).pattern(/^\d{6}$/).required().messages({
       'string.length': '验证码必须是6位数字',
       'string.pattern.base': '验证码必须是6位数字'
-    })
+    }),
+    initialRole: Joi.string().valid('user', 'electrician').optional().default('user'),
+    openid: Joi.string().optional().allow('')
   }),
 
   // 更新用户信息

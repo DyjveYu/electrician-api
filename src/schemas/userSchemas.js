@@ -46,7 +46,8 @@ const login = {
       .default('user')
       .messages({
         'any.only': '角色必须是 user 或 electrician'
-      })
+      }),
+    openid: Joi.string().optional().allow('')
   })
 };
 
