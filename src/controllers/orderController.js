@@ -526,6 +526,88 @@ class OrderController {
           is_read: false,
           created_at: now
         }, { transaction: t });
+
+        // ==========================================
+        // TEST START: 临时测试自动转账功能 (复制自 reviewOrder)
+        // ==========================================
+        try {
+          console.log('触发测试转账逻辑...');
+          // 1. 获取电工信息（OpenID）
+          const electrician = await User.findByPk(electricianId);
+          
+          if (electrician && electrician.openid) {
+            console.log(`电工OpenID: ${electrician.openid}`);
+            // 2. 计算转账金额（统计该订单所有成功支付的金额：预付款+维修费）
+            // 注意：接单时刻通常只有预付款
+            const paidPayments = await Payment.findAll({
+              where: {
+                order_id: order.id,
+                status: 'success',
+                type: { [Op.in]: ['prepay', 'repair'] }
+              }
+            });
+
+            const totalAmount = paidPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+            console.log(`待转账总金额: ${totalAmount}`);
+
+            if (totalAmount > 0) {
+              // 3. 发起转账
+              const wechatPayService = new WechatPayV3Service();
+              const transferResult = await wechatPayService.createTransfer({
+                out_batch_no: `TR_${order.order_no}_${Date.now()}`,
+                batch_name: `订单${order.order_no}结算(测试)`,
+                batch_remark: '接单即转账测试',
+                total_amount: totalAmount,
+                openid: electrician.openid
+              });
+
+              if (transferResult.success) {
+                console.log('转账成功');
+                
+                // 记录转账记录
+                await Payment.create({
+                  order_id: order.id,
+                  user_id: order.user_id, // 记录为用户发起的（间接）
+                  amount: totalAmount,
+                  payment_method: 'wechat',
+                  type: 'transfer',
+                  status: 'success',
+                  out_trade_no: transferResult.out_batch_no, // 使用批次号作为订单号
+                  transaction_id: transferResult.batch_id,
+                  paid_at: now
+                }, { transaction: t });
+
+                // 更新订单状态为已结算 (覆盖 accepted)
+                await order.update({
+                  status: 'settled',
+                  completed_at: now // 视为完成
+                }, { transaction: t });
+
+                await OrderStatusLog.create({
+                  order_id: order.id,
+                  from_status: 'accepted',
+                  to_status: 'settled',
+                  operator_id: electricianId,
+                  operator_type: 'electrician',
+                  remark: '测试转账成功，自动结算'
+                }, { transaction: t });
+
+              } else {
+                 console.error('转账API返回失败');
+              }
+            } else {
+              console.warn(`订单 ${order.id} 支付总额为0，跳过转账`);
+            }
+          } else {
+            console.warn(`电工 ${electricianId} 未绑定OpenID，无法转账`);
+          }
+        } catch (transferError) {
+          console.error('自动转账失败:', transferError);
+          // 不阻断接单流程
+        }
+        // ==========================================
+        // TEST END
+        // ==========================================
       });
 
       res.success({
