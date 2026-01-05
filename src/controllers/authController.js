@@ -203,7 +203,7 @@ class AuthController {
       if (error.code === 'ER_DUP_ENTRY') {
         return next({
           status: 409,
-          message: '账号已存在'
+          message: '当前微信已注册'
         });
       }
 

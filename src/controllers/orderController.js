@@ -6,6 +6,7 @@
 const { Order, User, ServiceType, OrderStatusLog, Message, Payment, Review, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const AppError = require('../utils/AppError');
+const WechatPayV3Service = require('../utils/WechatPayV3Service');
 
 /**
  * 生成唯一订单号
