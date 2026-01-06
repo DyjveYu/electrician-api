@@ -552,8 +552,11 @@ class OrderController {
           if (totalAmount > 0) {
             // 3. 发起转账
             const wechatPayService = new WechatPayV3Service();
+            // 缩短批次号以满足32字符限制：T{timestamp}_{orderId} (13+1+N)
+            const out_batch_no = `T${Date.now()}_${order.id}`;
+            
             const transferResult = await wechatPayService.createTransfer({
-              out_batch_no: `TR_${order.order_no}_${Date.now()}`,
+              out_batch_no: out_batch_no,
               batch_name: `订单${order.order_no}接单测试结算`,
               batch_remark: '接单即转账测试',
               total_amount: totalAmount,
