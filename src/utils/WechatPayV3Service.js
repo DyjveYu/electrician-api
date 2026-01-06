@@ -330,11 +330,14 @@ class WechatPayV3Service {
       openid
     } = transferData;
 
+    const safeOutBatchNo = String(out_batch_no || '').replace(/[^0-9A-Za-z]/g, '').slice(0, 32);
+    const safeOutDetailNo = `${safeOutBatchNo.slice(0, 30)}01`;
+
     if (this.isSandbox) {
-      console.log(`📱 测试环境商家转账: ${out_batch_no}, 金额: ${total_amount}元, OpenID: ${openid}`);
+      console.log(`📱 测试环境商家转账: ${safeOutBatchNo}, 金额: ${total_amount}元, OpenID: ${openid}`);
       return {
         success: true,
-        out_batch_no,
+        out_batch_no: safeOutBatchNo,
         batch_id: `mock_batch_${Date.now()}`,
         mock: true
       };
@@ -343,14 +346,14 @@ class WechatPayV3Service {
     try {
       const requestData = {
         appid: this.appId,
-        out_batch_no,
+        out_batch_no: safeOutBatchNo,
         batch_name,
         batch_remark,
         total_amount: Math.round(total_amount * 100), // 单位：分
         total_num: 1,
         transfer_detail_list: [
           {
-            out_detail_no: `${out_batch_no}_01`,
+            out_detail_no: safeOutDetailNo,
             transfer_amount: Math.round(total_amount * 100),
             transfer_remark: batch_remark,
             openid

@@ -553,7 +553,7 @@ class OrderController {
             // 3. 发起转账
             const wechatPayService = new WechatPayV3Service();
             // 缩短批次号以满足32字符限制：T{timestamp}_{orderId} (13+1+N)
-            const out_batch_no = `T${Date.now()}_${order.id}`;
+            const out_batch_no = `T${Date.now()}${String(order.id).padStart(6, '0')}`;
             
             const transferResult = await wechatPayService.createTransfer({
               out_batch_no: out_batch_no,
