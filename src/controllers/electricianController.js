@@ -195,7 +195,6 @@ exports.withdraw = async (req, res, next) => {
     });
 
     if (recentWithdrawal) {
-      await t.rollback();
       throw new AppError('您有提现申请正在处理中，请稍后再试', 400);
     }
 
@@ -206,7 +205,6 @@ exports.withdraw = async (req, res, next) => {
     });
 
     if (!user || !user.openid) {
-      await t.rollback();
       throw new AppError('用户未绑定微信，无法提现', 400);
     }
 
@@ -221,7 +219,6 @@ exports.withdraw = async (req, res, next) => {
     });
 
     if (!certification || !certification.real_name) {
-      await t.rollback();
       throw new AppError('请先完成实名认证', 400);
     }
 
@@ -231,12 +228,10 @@ exports.withdraw = async (req, res, next) => {
     const withdrawAmount = amount ? Number(amount) : balance.availableBalance;
 
     if (withdrawAmount < 0.3) {
-      await t.rollback();
       throw new AppError('提现金额不能低于0.30元', 400);
     }
 
     if (withdrawAmount > balance.availableBalance) {
-      await t.rollback();
       throw new AppError(`余额不足，可用余额：¥${balance.availableBalance}`, 400);
     }
 
@@ -335,10 +330,16 @@ exports.withdraw = async (req, res, next) => {
     }
 
   } catch (error) {
-    if (t.finished !== 'commit') {
-      await t.rollback();
+    // 只有当事务还未完成时才回滚
+    if (!t.finished) {
+      try {
+        await t.rollback();
+      } catch (rollbackError) {
+        console.error('[提现] 事务回滚失败:', rollbackError);
+      }
     }
     
+    // 特殊处理429错误
     if (error.statusCode === 429) {
       return res.status(429).json({
         success: false,
