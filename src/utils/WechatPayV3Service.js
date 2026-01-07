@@ -1,6 +1,6 @@
 /**
  * 微信支付V3服务工具类 - 公钥验签模式
- * 使用微信支付公钥进行回调验签（官方推荐方式）
+ * 使用微信支付公钥进行回调验签(官方推荐方式)
  */
 
 const crypto = require('crypto');
@@ -16,20 +16,29 @@ class WechatPayV3Service {
     this.mchSerialNo = process.env.WECHAT_MCH_SERIAL_NO; // 商户证书序列号
     this.apiV3Key = process.env.WECHAT_API_V3_KEY; // APIv3密钥
 
+    // ⭐ 新增：微信支付平台证书序列号
+    this.platformSerialNo = process.env.WECHAT_PLATFORM_SERIAL_NO;
+
     // 证书路径
     this.privateKeyPath = process.env.WECHAT_PRIVATE_KEY_PATH;
     this.certificatePath = process.env.WECHAT_CERTIFICATE_PATH;
-
-    // ✅ 新增：微信支付公钥路径
     this.publicKeyPath = process.env.WECHAT_PUBLIC_KEY_PATH || '/www/server/cert/wxpay/pub_key.pem';
 
-    // 加载商户私钥（用于请求签名）
+    // 加载商户私钥(用于请求签名)
     this.privateKey = fs.readFileSync(this.privateKeyPath, 'utf8');
 
-    // ✅ 加载微信支付公钥（用于回调验签）
+    // 加载微信支付公钥(用于回调验签)
     try {
       this.wechatPublicKey = fs.readFileSync(this.publicKeyPath, 'utf8');
       console.log('✅ 微信支付公钥加载成功');
+      
+      // ⭐ 自动从公钥证书中提取序列号
+      if (!this.platformSerialNo) {
+        this.platformSerialNo = this.extractSerialNoFromCert(this.wechatPublicKey);
+        if (this.platformSerialNo) {
+          console.log('✅ 自动提取平台证书序列号:', this.platformSerialNo);
+        }
+      }
     } catch (error) {
       console.error('❌ 微信支付公钥加载失败:', error.message);
       this.wechatPublicKey = null;
@@ -41,15 +50,30 @@ class WechatPayV3Service {
     this.isSandbox = process.env.WECHAT_SANDBOX === 'true';
 
     // 调试日志
-    console.log('微信支付配置检查（公钥验签模式）:');
+    console.log('微信支付配置检查(公钥验签模式):');
     console.log('- AppID:', this.appId);
     console.log('- MchID:', this.mchId);
     console.log('- MchSerialNo:', this.mchSerialNo ? '已配置' : '❌ 未配置');
+    console.log('- PlatformSerialNo:', this.platformSerialNo ? `已配置 (${this.platformSerialNo})` : '❌ 未配置');
     console.log('- APIv3Key:', this.apiV3Key ? '已配置' : '❌ 未配置');
     console.log('- 商户私钥:', this.privateKeyPath, this.privateKey ? '✅ 加载成功' : '❌ 加载失败');
     console.log('- 商户证书:', this.certificatePath);
     console.log('- 微信公钥:', this.publicKeyPath, this.wechatPublicKey ? '✅ 加载成功' : '❌ 加载失败');
     console.log('- isSandbox:', this.isSandbox);
+  }
+
+  /**
+   * ⭐ 从证书文件中提取序列号
+   */
+  extractSerialNoFromCert(certContent) {
+    try {
+      // 尝试作为完整证书解析
+      const cert = new crypto.X509Certificate(certContent);
+      return cert.serialNumber.replace(/:/g, '').toUpperCase();
+    } catch (error) {
+      console.warn('⚠️ 无法从公钥文件提取序列号，可能不是完整证书格式');
+      return null;
+    }
   }
 
   /**
@@ -134,20 +158,18 @@ class WechatPayV3Service {
   }
 
   /**
-   * ✅ 处理支付结果通知 - 公钥验签模式
+   * 处理支付结果通知 - 公钥验签模式
    */
   async handlePaymentNotify(headers, body) {
     try {
       console.log('\n' + '='.repeat(80));
-      console.log('📥 处理微信支付回调（公钥验签模式）');
+      console.log('📥 处理微信支付回调(公钥验签模式)');
       console.log('='.repeat(80));
 
-      // 1. 检查公钥是否加载
       if (!this.wechatPublicKey) {
         throw new Error('微信支付公钥未加载，无法验签');
       }
 
-      // 2. 提取签名参数
       const signature = headers['wechatpay-signature'];
       const serial = headers['wechatpay-serial'];
       const nonce = headers['wechatpay-nonce'];
@@ -163,7 +185,6 @@ class WechatPayV3Service {
         throw new Error('缺少必要的签名参数');
       }
 
-      // 3. 构建验签字符串
       const bodyString = JSON.stringify(body);
       const verifyString = `${timestamp}\n${nonce}\n${bodyString}\n`;
 
@@ -174,7 +195,6 @@ class WechatPayV3Service {
       ).join('\n'));
       console.log('-'.repeat(80));
 
-      // 4. ✅ 使用微信支付公钥验签
       const verifier = crypto.createVerify('RSA-SHA256');
       verifier.update(verifyString);
       const isValid = verifier.verify(this.wechatPublicKey, signature, 'base64');
@@ -186,7 +206,6 @@ class WechatPayV3Service {
 
       console.log('✅ 签名验证通过');
 
-      // 5. 解密资源数据
       const { resource } = body;
       if (!resource) {
         throw new Error('回调数据缺少resource字段');
@@ -228,7 +247,7 @@ class WechatPayV3Service {
   }
 
   /**
-   * 创建模拟订单（测试环境）
+   * 创建模拟订单(测试环境)
    */
   createMockJsapiOrder(orderData) {
     const { out_trade_no, amount, description } = orderData;
@@ -319,7 +338,7 @@ class WechatPayV3Service {
   }
 
   /**
-   * 发起商家转账 (V3 新版接口 /v3/fund-app/mch-transfer/transfer-bills)
+   * ⭐ 发起商家转账 (V3 新版接口 /v3/fund-app/mch-transfer/transfer-bills)
    * 适用于已开通"商家转账到零钱"产品的商户
    */
   async createTransferBill(transferData) {
@@ -335,37 +354,31 @@ class WechatPayV3Service {
       transfer_scene_report_infos
     } = transferData;
 
-    // 1. 基础参数校验与处理
-    // 商户单号：只能是数字、大小写字母，在商户系统内部唯一
     const safeOutBillNo = String(out_bill_no || '').replace(/[^0-9A-Za-z]/g, '').slice(0, 32);
 
-    // 沙箱环境模拟
     if (this.isSandbox) {
       console.log(`📱 测试环境发起商家转账: ${safeOutBillNo}, 金额: ${transfer_amount}元, OpenID: ${openid}`);
       return {
         success: true,
         out_bill_no: safeOutBillNo,
         transfer_bill_no: `mock_bill_${Date.now()}`,
-        state: 'WAIT_USER_CONFIRM', // 模拟状态：待用户确认
-        package_info: 'mock_package_info', // 模拟拉起确认页参数
+        state: 'WAIT_USER_CONFIRM',
+        package_info: 'mock_package_info',
         mock: true
       };
     }
 
     try {
-      // 2. 构建请求参数
       const requestData = {
         appid: this.appId,
         out_bill_no: safeOutBillNo,
-        transfer_scene_id: transfer_scene_id || '1000', // 默认为现金营销场景，实际需按业务申请
+        transfer_scene_id: transfer_scene_id || '1000',
         openid,
-        transfer_amount: Math.round(transfer_amount * 100), // 单位：分
+        transfer_amount: Math.round(transfer_amount * 100),
         transfer_remark: transfer_remark || '劳务报酬',
-        // 选填参数
-        ...(user_name && { user_name: this.encryptSensitiveField(user_name) }), // 需加密
+        ...(user_name && { user_name: this.encryptSensitiveField(user_name) }),
         ...(notify_url && { notify_url }),
         ...(user_recv_perception && { user_recv_perception }),
-        // 场景报备信息（必填）
         transfer_scene_report_infos: transfer_scene_report_infos || [
           {
             info_type: '活动名称',
@@ -380,11 +393,9 @@ class WechatPayV3Service {
 
       console.log('🚀 发起商家转账请求:', JSON.stringify(requestData, null, 2));
 
-      // 3. 调用微信接口
       const url = '/v3/fund-app/mch-transfer/transfer-bills';
       const response = await this.request('POST', url, requestData);
 
-      // 4. 处理响应
       if (response.status === 200 || response.status === 202) {
         return {
           success: true,
@@ -427,7 +438,7 @@ class WechatPayV3Service {
    */
   async createTransfer(transferData) {
     console.warn('⚠️ createTransfer 已废弃，请迁移至 createTransferBill');
-    // ... 原有逻辑保持不变，或直接抛出错误提示迁移
+    
     const {
       out_batch_no,
       batch_name,
@@ -455,7 +466,7 @@ class WechatPayV3Service {
         out_batch_no: safeOutBatchNo,
         batch_name,
         batch_remark,
-        total_amount: Math.round(total_amount * 100), // 单位：分
+        total_amount: Math.round(total_amount * 100),
         total_num: 1,
         transfer_detail_list: [
           {
@@ -467,8 +478,6 @@ class WechatPayV3Service {
         ]
       };
 
-      // 注意：该接口通常需要请求签名（已封装在 request 方法中）
-      // 且需要在商户平台开启“商家转账到零钱”并配置IP白名单
       const url = '/v3/transfer/batches';
       const response = await this.request('POST', url, requestData);
 
@@ -483,7 +492,7 @@ class WechatPayV3Service {
   }
 
   /**
-   * 通用V3接口请求方法
+   * ⭐ 通用V3接口请求方法 (修复版 - 添加 Wechatpay-Serial)
    */
   async request(method, path, data = null) {
     const url = `${this.baseUrl}${path}`;
@@ -506,6 +515,13 @@ class WechatPayV3Service {
       'Accept': 'application/json',
       'User-Agent': `WechatPay-NodeJS/1.0 (${this.mchId})`
     };
+
+    // ⭐ 关键修复：添加微信支付平台证书序列号
+    if (this.platformSerialNo) {
+      headers['Wechatpay-Serial'] = this.platformSerialNo;
+    } else {
+      console.warn('⚠️ 未配置 WECHAT_PLATFORM_SERIAL_NO，部分接口可能失败');
+    }
 
     const config = {
       method,
