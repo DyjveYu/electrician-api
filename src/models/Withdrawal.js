@@ -36,6 +36,11 @@ const Withdrawal = sequelize.define('Withdrawal', {
     allowNull: true,
     comment: '微信批次单号'
   },
+  package_info: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: '微信收款package信息（用于小程序拉起收款页面）'
+  },
   openid: {
     type: DataTypes.STRING(64),
     allowNull: false,

@@ -71,7 +71,7 @@ router.get(
 router.post(
   '/withdraw',
   authenticateToken,
-  rateLimiter({ max: 5, windowMs: 60 * 60 * 1000 }), // 1小时最多提现5次
+  rateLimiter({ max: 3, windowMs: 5 * 60 * 1000 }), // 5分钟最多提现5次
   ElectricianController.withdraw
 );
 
