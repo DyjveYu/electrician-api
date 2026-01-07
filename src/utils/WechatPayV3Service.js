@@ -319,9 +319,115 @@ class WechatPayV3Service {
   }
 
   /**
-   * 发起商家转账到零钱 (V3)
+   * 发起商家转账 (V3 新版接口 /v3/fund-app/mch-transfer/transfer-bills)
+   * 适用于已开通"商家转账到零钱"产品的商户
+   */
+  async createTransferBill(transferData) {
+    const {
+      out_bill_no,
+      transfer_scene_id,
+      openid,
+      user_name,
+      transfer_amount,
+      transfer_remark,
+      notify_url,
+      user_recv_perception,
+      transfer_scene_report_infos
+    } = transferData;
+
+    // 1. 基础参数校验与处理
+    // 商户单号：只能是数字、大小写字母，在商户系统内部唯一
+    const safeOutBillNo = String(out_bill_no || '').replace(/[^0-9A-Za-z]/g, '').slice(0, 32);
+
+    // 沙箱环境模拟
+    if (this.isSandbox) {
+      console.log(`📱 测试环境发起商家转账: ${safeOutBillNo}, 金额: ${transfer_amount}元, OpenID: ${openid}`);
+      return {
+        success: true,
+        out_bill_no: safeOutBillNo,
+        transfer_bill_no: `mock_bill_${Date.now()}`,
+        state: 'WAIT_USER_CONFIRM', // 模拟状态：待用户确认
+        package_info: 'mock_package_info', // 模拟拉起确认页参数
+        mock: true
+      };
+    }
+
+    try {
+      // 2. 构建请求参数
+      const requestData = {
+        appid: this.appId,
+        out_bill_no: safeOutBillNo,
+        transfer_scene_id: transfer_scene_id || '1000', // 默认为现金营销场景，实际需按业务申请
+        openid,
+        transfer_amount: Math.round(transfer_amount * 100), // 单位：分
+        transfer_remark: transfer_remark || '劳务报酬',
+        // 选填参数
+        ...(user_name && { user_name: this.encryptSensitiveField(user_name) }), // 需加密
+        ...(notify_url && { notify_url }),
+        ...(user_recv_perception && { user_recv_perception }),
+        // 场景报备信息（必填）
+        transfer_scene_report_infos: transfer_scene_report_infos || [
+          {
+            info_type: '活动名称',
+            info_content: '电工劳务费结算'
+          },
+          {
+            info_type: '奖励说明',
+            info_content: '订单完工结算'
+          }
+        ]
+      };
+
+      console.log('🚀 发起商家转账请求:', JSON.stringify(requestData, null, 2));
+
+      // 3. 调用微信接口
+      const url = '/v3/fund-app/mch-transfer/transfer-bills';
+      const response = await this.request('POST', url, requestData);
+
+      // 4. 处理响应
+      if (response.status === 200 || response.status === 202) {
+        return {
+          success: true,
+          ...response.data
+        };
+      } else {
+        throw new Error(`转账请求返回异常状态码: ${response.status}`);
+      }
+
+    } catch (error) {
+      console.error('❌ 商家转账发起失败:', error.response?.data || error.message);
+      throw new Error(`转账失败: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  /**
+   * 敏感字段加密 (使用微信支付公钥 RSA/OAEP/2048/SHA-1/MGF1)
+   */
+  encryptSensitiveField(str) {
+    if (!this.wechatPublicKey) {
+      throw new Error('未加载微信支付公钥，无法加密敏感字段');
+    }
+    try {
+      const buffer = Buffer.from(str, 'utf8');
+      const encrypted = crypto.publicEncrypt({
+        key: this.wechatPublicKey,
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+        oaepHash: 'sha1'
+      }, buffer);
+      return encrypted.toString('base64');
+    } catch (error) {
+      console.error('加密失败:', error);
+      throw new Error('敏感字段加密失败');
+    }
+  }
+
+  /**
+   * [已废弃] 发起商家转账到零钱 (旧版 V3 /v3/transfer/batches)
+   * @deprecated 请使用 createTransferBill 替代
    */
   async createTransfer(transferData) {
+    console.warn('⚠️ createTransfer 已废弃，请迁移至 createTransferBill');
+    // ... 原有逻辑保持不变，或直接抛出错误提示迁移
     const {
       out_batch_no,
       batch_name,

@@ -16,6 +16,7 @@ const ServiceType = require('./ServiceType');
 const SystemMessage = require('./SystemMessage');
 const OrderStatusLog = require('./OrderStatusLog');
 const Admin = require('./Admin');
+const Withdrawal = require('./Withdrawal');
 
 // 定义关联关系
 
@@ -119,7 +120,7 @@ Message.belongsTo(Order, {
   as: 'order'
 });
 
-// 10. SystemMessage - User (通过 UserMessageRead)
+// 11. SystemMessage - User (通过 UserMessageRead)
 const UserMessageRead = require('./UserMessageRead');
 
 SystemMessage.belongsToMany(User, {
@@ -134,6 +135,16 @@ User.belongsToMany(SystemMessage, {
   foreignKey: 'user_id',
   otherKey: 'message_id',
   as: 'readMessages'
+});
+
+// 12. User - Withdrawal: 一对多（电工 -> 提现记录）
+User.hasMany(Withdrawal, {
+  foreignKey: 'electrician_id',
+  as: 'withdrawals'
+});
+Withdrawal.belongsTo(User, {
+  foreignKey: 'electrician_id',
+  as: 'electrician'
 });
 
 // 导出所有模型和sequelize实例
@@ -151,5 +162,6 @@ module.exports = {
   OrderStatusLog,
   Admin,
   UserMessageRead,
+  Withdrawal,  // ✅ 添加这一行
   Sequelize: require('sequelize')
 };

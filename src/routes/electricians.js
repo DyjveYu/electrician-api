@@ -52,4 +52,48 @@ router.get(
   ElectricianController.getCertificationStatus
 );
 
+/**
+ * @route GET /api/electricians/income
+ * @desc 获取电工收入详情
+ * @access Private (Electrician only)
+ */
+router.get(
+  '/income',
+  authenticateToken,
+  ElectricianController.getIncome
+);
+
+/**
+ * @route POST /api/electricians/withdraw
+ * @desc 电工申请提现
+ * @access Private (Electrician only)
+ */
+router.post(
+  '/withdraw',
+  authenticateToken,
+  rateLimiter({ max: 5, windowMs: 60 * 60 * 1000 }), // 1小时最多提现5次
+  ElectricianController.withdraw
+);
+
+/**
+ * @route GET /api/electricians/withdrawals
+ * @desc 获取提现记录列表
+ * @access Private (Electrician only)
+ */
+router.get(
+  '/withdrawals',
+  authenticateToken,
+  ElectricianController.getWithdrawals
+);
+
+/**
+ * @route POST /api/electricians/withdrawal/callback
+ * @desc 微信提现结果回调
+ * @access Public (微信服务器调用，无需认证)
+ */
+router.post(
+  '/withdrawal/callback',
+  ElectricianController.withdrawalCallback
+);
+
 module.exports = router;
