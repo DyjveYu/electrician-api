@@ -271,8 +271,12 @@ exports.withdraw = async (req, res, next) => {
         user_recv_perception: '劳务报酬',
         transfer_scene_report_infos: [
           {
-            info_type: '场景描述',
-            info_content: '平台佣金发放'
+            info_type: '岗位类型',
+            info_content: '电工'
+          },
+          {
+            info_type: '报酬说明',
+            info_content: '维修安装服务费'
           }
         ]
       };
