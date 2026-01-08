@@ -381,12 +381,12 @@ class WechatPayV3Service {
         ...(user_recv_perception && { user_recv_perception }),
         transfer_scene_report_infos: transfer_scene_report_infos || [
           {
-            info_type: '活动名称',
-            info_content: '电工劳务费结算'
+            info_type: '岗位类型',
+            info_content: '电工'
           },
           {
-            info_type: '奖励说明',
-            info_content: '订单完工结算'
+            info_type: '报酬说明',
+            info_content: '维修安装服务费'
           }
         ]
       };
