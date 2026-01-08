@@ -372,7 +372,7 @@ class WechatPayV3Service {
       const requestData = {
         appid: this.appId,
         out_bill_no: safeOutBillNo,
-        transfer_scene_id: transfer_scene_id || '1000',
+        transfer_scene_id: transfer_scene_id || '1005',
         openid,
         transfer_amount: Math.round(transfer_amount * 100),
         transfer_remark: transfer_remark || '劳务报酬',
