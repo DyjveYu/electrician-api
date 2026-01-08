@@ -173,7 +173,7 @@ function generateOutBatchNo(electricianId) {
 }
 
 /**
- * 申请提现（修复版）
+ * 申请提现
  */
 exports.withdraw = async (req, res, next) => {
   const t = await sequelize.transaction();
@@ -296,7 +296,17 @@ exports.withdraw = async (req, res, next) => {
 
       console.log(`[提现] 状态已更新为processing: ${withdrawal.id}`);
 
-      // 9. 返回成功响应
+console.log('[提现] 准备返回给小程序的数据:', {
+  withdrawal_id: withdrawal.id,
+  amount: withdrawAmount,
+  status: 'processing',
+  out_batch_no: outBatchNo,
+  transfer_bill_no: transferResult.transfer_bill_no,
+  package_info: transferResult.package_info ? '已包含' : '缺失',
+  state: transferResult.state || 'WAIT_USER_CONFIRM'
+});
+
+      // 9. ⭐ 返回成功响应（包含 package_info 用于小程序拉起确认页）
       res.status(200).json({
         success: true,
         message: '提现申请已提交，请确认收款',
@@ -305,7 +315,9 @@ exports.withdraw = async (req, res, next) => {
           amount: withdrawAmount,
           status: 'processing',
           out_batch_no: outBatchNo,
-          package_info: transferResult.package_info
+          transfer_bill_no: transferResult.transfer_bill_no,
+          package_info: transferResult.package_info, // ⭐ 小程序需要这个参数拉起确认页
+          state: transferResult.state || 'WAIT_USER_CONFIRM' // ⭐ 必须返回 state 字段
         }
       });
 
