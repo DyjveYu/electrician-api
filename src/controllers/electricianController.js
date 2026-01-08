@@ -268,7 +268,7 @@ exports.withdraw = async (req, res, next) => {
         user_name: certification.real_name,
         transfer_amount: Math.round(withdrawAmount * 100),
         transfer_remark: '电工收入提现',
-        user_recv_perception: '电工佣金',
+        user_recv_perception: '劳务报酬',
         transfer_scene_report_infos: [
           {
             info_type: '场景描述',
