@@ -280,6 +280,9 @@ exports.withdraw = async (req, res, next) => {
           }
         ]
       };
+// ⭐ 添加调试日志
+console.log('[提现] 传给 WechatPayV3Service 的金额(元):', withdrawAmount);
+console.log('[提现] 应该转换为(分):', Math.round(withdrawAmount * 100));
 
       console.log(`[提现] 调用微信API: ${outBatchNo}`);
       transferResult = await wechatPayService.createTransferBill(transferParams);

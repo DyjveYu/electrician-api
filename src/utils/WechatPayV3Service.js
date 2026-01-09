@@ -353,7 +353,9 @@ class WechatPayV3Service {
       user_recv_perception,
       transfer_scene_report_infos
     } = transferData;
-
+  // ⭐ 添加调试日志
+  console.log('🔍 createTransferBill 接收到的 transfer_amount:', transfer_amount);
+  console.log('🔍 typeof transfer_amount:', typeof transfer_amount);
     const safeOutBillNo = String(out_bill_no || '').replace(/[^0-9A-Za-z]/g, '').slice(0, 32);
 
     if (this.isSandbox) {
@@ -375,6 +377,7 @@ class WechatPayV3Service {
         transfer_scene_id: transfer_scene_id || '1005',
         openid,
         transfer_amount: Math.round(transfer_amount * 100),
+        
         transfer_remark: transfer_remark || '劳务报酬',
         ...(user_name && { user_name: this.encryptSensitiveField(user_name) }),
         ...(notify_url && { notify_url }),
@@ -390,7 +393,9 @@ class WechatPayV3Service {
           }
         ]
       };
-
+ // ⭐ 添加调试日志
+  console.log('💰 [Service] 转换为分:', amountInFen);
+  console.log('🔍 发给微信API的 transfer_amount(分):', requestData.transfer_amount);
       console.log('🚀 发起商家转账请求:', JSON.stringify(requestData, null, 2));
 
       const url = '/v3/fund-app/mch-transfer/transfer-bills';
