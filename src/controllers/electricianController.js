@@ -270,7 +270,7 @@ console.log('[提现] typeof withdrawAmount:', typeof withdrawAmount);
         transfer_scene_id: '1005',
         openid: user.openid,
         user_name: certification.real_name,
-        transfer_amount: Math.round(withdrawAmount * 100),
+        transfer_amount: withdrawAmount, // ✅ 单位：元（例如 0.3）
         transfer_remark: '电工收入提现',
         user_recv_perception: '劳务报酬',
         transfer_scene_report_infos: [
