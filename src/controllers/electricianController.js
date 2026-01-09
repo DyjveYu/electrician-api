@@ -227,8 +227,8 @@ exports.withdraw = async (req, res, next) => {
 
     const withdrawAmount = amount ? Number(amount) : balance.availableBalance;
 
-    if (withdrawAmount < 0.3) {
-      throw new AppError('提现金额不能低于0.30元', 400);
+    if (withdrawAmount < 0.1) {
+      throw new AppError('提现金额不能低于0.10元', 400);
     }
 
     if (withdrawAmount > balance.availableBalance) {
