@@ -10,7 +10,7 @@ const { authenticateToken } = require('../middleware/auth');
 const validate = require('../middleware/validation');
 const { electricianCertificationSchema } = require('../schemas/electricianSchemas');
 const rateLimiter = require('../middleware/rateLimiter');
-
+const authMiddleware = require('../middleware/auth'); // ⭐ 必须引入
 /**
  * @route POST /api/electricians/certification
  * @desc 提交电工认证申请
@@ -95,5 +95,11 @@ router.post(
   '/withdrawal/callback',
   ElectricianController.withdrawalCallback
 );
+// ⭐ 新增：查询转账单状态
+router.get(
+  '/withdrawal/status', 
+  ElectricianController.queryWithdrawalStatus
+);
+
 
 module.exports = router;

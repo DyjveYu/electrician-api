@@ -416,6 +416,47 @@ class WechatPayV3Service {
     }
   }
 
+/**
+ * ⭐ 查询转账单（商户单号查询）
+ * 文档：https://pay.weixin.qq.com/doc/v3/merchant/4012716437
+ * 
+ * 添加到 WechatPayV3Service.js 中，放在 createTransferBill 方法之后
+ */
+async queryTransferBill(outBillNo) {
+  // 沙箱环境模拟
+  if (this.isSandbox) {
+    console.log(`📱 测试环境查询转账单: ${outBillNo}`);
+    return {
+      state: 'SUCCESS',
+      out_bill_no: outBillNo,
+      transfer_bill_no: `mock_bill_${Date.now()}`,
+      success_time: new Date().toISOString()
+    };
+  }
+
+  try {
+    const url = `/v3/fund-app/mch-transfer/out-bill-no/${outBillNo}`;
+    console.log(`🔍 查询转账单: GET ${url}`);
+    
+    const response = await this.request('GET', url);
+    
+    console.log(`✅ 查询成功:`, response.data);
+    
+    return {
+      success: true,
+      ...response.data
+    };
+  } catch (error) {
+    console.error('❌ 查询转账单失败:', {
+      url: `/v3/fund-app/mch-transfer/out-bill-no/${outBillNo}`,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    
+    throw new Error(`查询失败: ${error.response?.data?.message || error.message}`);
+  }
+}
+
   /**
    * 敏感字段加密 (使用微信支付公钥 RSA/OAEP/2048/SHA-1/MGF1)
    */
@@ -660,5 +701,7 @@ class WechatPayV3Service {
     };
   }
 }
+
+
 
 module.exports = WechatPayV3Service;
