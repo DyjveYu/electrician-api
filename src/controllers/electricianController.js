@@ -1,7 +1,6 @@
 /**
  * electricianController.js - 完整版
  * 包含所有电工相关功能
- * 2026.1.10新增：查询提现状态
  */
 
 const { Order, Payment, Review, User, ElectricianCertification, Withdrawal, sequelize } = require('../models');
@@ -433,8 +432,24 @@ exports.getWithdrawals = async (req, res, next) => {
  */
 exports.queryWithdrawalStatus = async (req, res, next) => {
   try {
+    // ⭐ 添加调试日志和防御性检查
+    console.log('[查询状态] 开始处理请求');
+    console.log('[查询状态] req.user:', req.user ? `{id: ${req.user.id}}` : 'undefined');
+    console.log('[查询状态] req.query:', req.query);
+    
+    if (!req.user || !req.user.id) {
+      console.error('[查询状态] ❌ 用户未认证');
+      return res.status(401).json({
+        success: false,
+        message: '用户未认证，请重新登录'
+      });
+    }
+    
     const electricianId = req.user.id;
     const { withdrawal_id, out_batch_no } = req.query;
+
+    console.log('[查询状态] 电工ID:', electricianId);
+    console.log('[查询状态] 查询参数:', { withdrawal_id, out_batch_no });
 
     // 1. 查询本地订单
     const where = { electrician_id: electricianId };
@@ -449,6 +464,7 @@ exports.queryWithdrawalStatus = async (req, res, next) => {
     const withdrawal = await Withdrawal.findOne({ where });
     
     if (!withdrawal) {
+      console.log('[查询状态] ❌ 提现记录不存在');
       throw new AppError('提现记录不存在', 404);
     }
 
@@ -546,6 +562,7 @@ exports.queryWithdrawalStatus = async (req, res, next) => {
     }
 
   } catch (error) {
+    console.error('[查询状态] 错误:', error);
     next(error);
   }
 };
