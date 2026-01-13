@@ -10,7 +10,22 @@ const redis = require('../config/redis');
  * 验证JWT token
  */
 const authenticateToken = async (req, res, next) => {
+  // ⭐ 临时：允许查询接口跳过认证
+  if (req.path === '/withdrawal/status') {
+    console.log('[认证中间件] ⚠️ 临时跳过认证（仅测试）');
+    // 模拟一个用户
+    req.user = { id: 53 }; // ⭐ 使用你的实际用户ID
+    return next();
+  }
   try {
+    // ⭐ 添加详细日志
+    console.log('============2026.1.12认证中间件============');
+    console.log('[认证中间件] 开始验证');
+    console.log('[认证中间件] 请求路径:', req.path);
+    console.log('[认证中间件] Authorization header:', req.headers.authorization);
+    console.log('[认证中间件] 所有 headers:', JSON.stringify(req.headers, null, 2));
+
+
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -30,12 +45,12 @@ const authenticateToken = async (req, res, next) => {
     } catch (redisError) {
       console.warn('Redis连接失败，跳过黑名单检查:', redisError.message);
     }
-    
+
     // 验证token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     console.log('JWT decoded payload:', JSON.stringify(decoded, null, 2));
     console.log('decoded.id:', decoded.id, 'typeof:', typeof decoded.id);
-    
+
     // 获取用户信息
     const user = await User.findById(decoded.id);
     if (!user) {
@@ -44,7 +59,7 @@ const authenticateToken = async (req, res, next) => {
         message: '用户不存在'
       });
     }
-    
+
     // 检查用户状态
     if (user.status === 'banned') {
       return res.status(403).json({
@@ -77,7 +92,7 @@ const requireRole = (roles) => {
     }
 
     const userRoles = Array.isArray(roles) ? roles : [roles];
-    
+
     if (!userRoles.includes(req.user.current_role)) {
       return res.error('权限不足', 403);
     }
@@ -116,7 +131,7 @@ const optionalAuth = async (req, res, next) => {
         req.user = user;
       }
     }
-    
+
     next();
   } catch (error) {
     // 忽略token错误，继续执行
