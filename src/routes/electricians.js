@@ -99,7 +99,7 @@ router.post(
 // ⭐⭐⭐ 查询单个提现状态（使用 authenticateToken）
 router.get('/withdrawal/status', authenticateToken, ElectricianController.queryWithdrawalStatus);
 
-console.log('========1.13 10:47=========');
+console.log('[Router:electricians] 模块已加载，开始打印路由列表用于提现调试');
 console.log('📋 注册的路由列表:');
 router.stack.forEach((r) => {
   if (r.route) {
@@ -107,5 +107,16 @@ router.stack.forEach((r) => {
     console.log(`  ${methods} /api/electricians${r.route.path}`);
   }
 });
+
+/**
+ * @route GET /api/electricians/withdrawals/:outBatchNo/status
+ * @desc 查询提现状态
+ * @access Private
+ */
+router.get(
+  '/withdrawals/:outBatchNo/status',
+  authenticateToken,
+  ElectricianController.getWithdrawalStatus
+);
 
 module.exports = router;

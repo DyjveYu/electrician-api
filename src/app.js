@@ -61,6 +61,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/electricians', electricianRoutes);
 
 
+
 // 健康检查
 app.get('/health', (req, res) => {
   res.success({
@@ -83,6 +84,10 @@ app.listen(PORT, () => {
   console.log(`🚀 服务器启动成功，端口: ${PORT}`);
   console.log(`📅 启动时间: ${new Date().toISOString()}`);
   console.log(`🏥 健康检查: http://localhost:${PORT}/health`);
+  console.log(
+    '[Startup] Withdrawal status debug tag: /api/electricians/withdrawals/:outBatchNo/status @',
+    new Date().toISOString()
+  );
   // 启动预付款超时关闭任务（临时停用以避免启动报错）
   // initPaymentTimeoutJob();
   // 枚举值变更由你手动执行数据库更新，不在应用启动中处理

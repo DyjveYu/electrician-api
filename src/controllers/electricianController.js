@@ -631,6 +631,13 @@ exports.getWithdrawalStatus = async (req, res, next) => {
     const electricianId = req.user.id;
     const { outBatchNo } = req.params;  // ✅ 从路径参数获取
 
+    console.log('[查询状态][路径版] 收到请求:', {
+      userId: electricianId,
+      outBatchNo,
+      url: req.originalUrl,
+      time: new Date().toISOString()
+    });
+
     console.log(`[查询状态] 订单号: ${outBatchNo}, 电工ID: ${electricianId}`);
 
     // 1. 查询数据库记录
