@@ -10,7 +10,7 @@ const { authenticateToken } = require('../middleware/auth');
 const validate = require('../middleware/validation');
 const { electricianCertificationSchema } = require('../schemas/electricianSchemas');
 const rateLimiter = require('../middleware/rateLimiter');
-const authMiddleware = require('../middleware/auth'); // ⭐ 必须引入
+
 /**
  * @route POST /api/electricians/certification
  * @desc 提交电工认证申请
@@ -95,11 +95,17 @@ router.post(
   '/withdrawal/callback',
   ElectricianController.withdrawalCallback
 );
-// ⭐ 新增：查询转账单状态
-router.get(
-  '/withdrawal/status', 
-  ElectricianController.queryWithdrawalStatus
-);
 
+// ⭐⭐⭐ 查询单个提现状态（使用 authenticateToken）
+router.get('/withdrawal/status', authenticateToken, ElectricianController.queryWithdrawalStatus);
+
+console.log('========1.13 10:47=========');
+console.log('📋 注册的路由列表:');
+router.stack.forEach((r) => {
+  if (r.route) {
+    const methods = Object.keys(r.route.methods).join(',').toUpperCase();
+    console.log(`  ${methods} /api/electricians${r.route.path}`);
+  }
+});
 
 module.exports = router;
