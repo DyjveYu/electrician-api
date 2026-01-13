@@ -419,7 +419,7 @@ class WechatPayV3Service {
 /**
  * ⭐ 查询转账单（商户单号查询）
  * 文档：https://pay.weixin.qq.com/doc/v3/merchant/4012716437
- * 
+ * @param {string} outBillNo 商户单号
  * 添加到 WechatPayV3Service.js 中，放在 createTransferBill 方法之后
  */
 async queryTransferBill(outBillNo) {
@@ -435,27 +435,31 @@ async queryTransferBill(outBillNo) {
   }
 
   try {
-    const url = `/v3/fund-app/mch-transfer/out-bill-no/${outBillNo}`;
+    // ✅ 修复：完整的路径，包含 /transfer-bills/
+    const url = `/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/${outBillNo}`;
     console.log(`🔍 查询转账单: GET ${url}`);
     
     const response = await this.request('GET', url);
     
-    console.log(`✅ 查询成功:`, response.data);
+    console.log(`✅ 微信查询成功:`, response.data);
     
-    return {
-      success: true,
-      ...response.data
-    };
+    // 返回微信的原始响应
+    return response.data;
+    
   } catch (error) {
-    console.error('❌ 查询转账单失败:', {
-      url: `/v3/fund-app/mch-transfer/out-bill-no/${outBillNo}`,
+    console.error('❌ 微信查询转账单失败:', {
+      url: `/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/${outBillNo}`,
       status: error.response?.status,
+      statusText: error.response?.statusText,
       data: error.response?.data
     });
     
-    throw new Error(`查询失败: ${error.response?.data?.message || error.message}`);
+    // 抛出详细错误
+    const errorMsg = error.response?.data?.message || error.message;
+    throw new Error(`微信查询失败: ${errorMsg}`);
   }
 }
+
 
   /**
    * 敏感字段加密 (使用微信支付公钥 RSA/OAEP/2048/SHA-1/MGF1)

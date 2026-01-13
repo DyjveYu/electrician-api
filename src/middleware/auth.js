@@ -10,13 +10,14 @@ const redis = require('../config/redis');
  * 验证JWT token
  */
 const authenticateToken = async (req, res, next) => {
-  // ⭐ 临时：允许查询接口跳过认证
+  /* ⭐ 临时：允许查询接口跳过认证
   if (req.path === '/withdrawal/status') {
     console.log('[认证中间件] ⚠️ 临时跳过认证（仅测试）');
     // 模拟一个用户
     req.user = { id: 53 }; // ⭐ 使用你的实际用户ID
     return next();
   }
+    */
   try {
     // ⭐ 添加详细日志
     console.log('============2026.1.12认证中间件============');

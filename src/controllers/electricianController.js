@@ -622,4 +622,130 @@ exports.withdrawalCallback = async (req, res, next) => {
   }
 };
 
+/**
+ * ⭐ 新增：通过路径参数查询提现状态
+ * GET /api/electricians/withdrawals/:outBatchNo/status
+ */
+exports.getWithdrawalStatus = async (req, res, next) => {
+  try {
+    const electricianId = req.user.id;
+    const { outBatchNo } = req.params;  // ✅ 从路径参数获取
+
+    console.log(`[查询状态] 订单号: ${outBatchNo}, 电工ID: ${electricianId}`);
+
+    // 1. 查询数据库记录
+    const withdrawal = await Withdrawal.findOne({
+      where: {
+        out_batch_no: outBatchNo,
+        electrician_id: electricianId
+      }
+    });
+
+    if (!withdrawal) {
+      throw new AppError('提现记录不存在', 404);
+    }
+
+    console.log(`[查询状态] 找到记录 ID: ${withdrawal.id}, 当前状态: ${withdrawal.status}`);
+
+    // 2. 如果已是终态，直接返回
+    if (['success', 'failed', 'cancelled'].includes(withdrawal.status)) {
+      console.log(`[查询状态] 已是终态: ${withdrawal.status}`);
+      return res.json({
+        success: true,
+        data: {
+          id: withdrawal.id,
+          amount: withdrawal.amount,
+          status: withdrawal.status,
+          out_batch_no: withdrawal.out_batch_no,
+          transfer_bill_no: withdrawal.transfer_bill_no,
+          fail_reason: withdrawal.fail_reason,
+          created_at: withdrawal.created_at,
+          completed_at: withdrawal.completed_at,
+          wechat_state: withdrawal.status.toUpperCase()
+        }
+      });
+    }
+
+    // 3. 非终态，查询微信最新状态
+    let wechatState = null;
+    
+    try {
+      const wechatPayService = new WechatPayV3Service();
+      
+      console.log(`[查询状态] 调用微信API查询: ${outBatchNo}`);
+      
+      const queryResult = await wechatPayService.queryTransferBill(outBatchNo);
+      wechatState = queryResult.state;
+
+      console.log(`[查询状态] 微信返回状态: ${wechatState}`, queryResult);
+
+      // 4. 根据微信状态更新数据库
+      const updateData = {};
+      
+      if (wechatState === 'SUCCESS') {
+        updateData.status = 'success';
+        updateData.completed_at = new Date();
+        console.log(`[查询状态] 转账成功`);
+      } else if (wechatState === 'FAIL') {
+        updateData.status = 'failed';
+        updateData.fail_reason = queryResult.fail_reason || '转账失败';
+        console.log(`[查询状态] 转账失败: ${updateData.fail_reason}`);
+      } else if (wechatState === 'CANCELLED') {
+        updateData.status = 'cancelled';
+        updateData.fail_reason = '用户取消收款';
+        console.log(`[查询状态] 用户取消`);
+      } else {
+        console.log(`[查询状态] 仍在处理中: ${wechatState}`);
+      }
+
+      // 5. 更新数据库
+      if (Object.keys(updateData).length > 0) {
+        await withdrawal.update(updateData);
+        console.log(`[查询状态] 数据库已更新`);
+      }
+
+    } catch (apiError) {
+      console.error('[查询状态] 微信API错误:', apiError);
+      
+      // API调用失败，返回数据库状态 + 错误信息
+      return res.json({
+        success: true,
+        data: {
+          id: withdrawal.id,
+          amount: withdrawal.amount,
+          status: withdrawal.status,
+          out_batch_no: withdrawal.out_batch_no,
+          transfer_bill_no: withdrawal.transfer_bill_no,
+          fail_reason: withdrawal.fail_reason,
+          created_at: withdrawal.created_at,
+          completed_at: withdrawal.completed_at,
+          query_error: `查询失败: ${apiError.message}`
+        }
+      });
+    }
+
+    // 6. 返回最新状态
+    const updatedWithdrawal = await Withdrawal.findByPk(withdrawal.id);
+    
+    res.json({
+      success: true,
+      data: {
+        id: updatedWithdrawal.id,
+        amount: updatedWithdrawal.amount,
+        status: updatedWithdrawal.status,
+        out_batch_no: updatedWithdrawal.out_batch_no,
+        transfer_bill_no: updatedWithdrawal.transfer_bill_no,
+        fail_reason: updatedWithdrawal.fail_reason,
+        created_at: updatedWithdrawal.created_at,
+        completed_at: updatedWithdrawal.completed_at,
+        wechat_state: wechatState
+      }
+    });
+
+  } catch (error) {
+    console.error('[查询状态] 错误:', error);
+    next(error);
+  }
+};
+
 module.exports = exports;
