@@ -755,4 +755,90 @@ exports.getWithdrawalStatus = async (req, res, next) => {
   }
 };
 
+/**
+ * 撤销提现（电工在确认收款页点击取消时调用）
+ * 流程：
+ * 1. 校验提现记录归属和当前状态
+ * 2. 调用微信撤销转账接口
+ * 3. 本地直接将状态标记为 cancelled，视为终态
+ */
+exports.cancelWithdrawal = async (req, res, next) => {
+  try {
+    const electricianId = req.user.id;
+    const { outBatchNo } = req.params;
+
+    console.log('[撤销提现] 收到请求:', {
+      userId: electricianId,
+      outBatchNo,
+      url: req.originalUrl,
+      time: new Date().toISOString()
+    });
+
+    // 根据商户单号 + 电工ID 查询提现记录，避免越权
+    const withdrawal = await Withdrawal.findOne({
+      where: {
+        out_batch_no: outBatchNo,
+        electrician_id: electricianId
+      }
+    });
+
+    if (!withdrawal) {
+      // 找不到记录，说明商户单号无效或不属于当前用户
+      throw new AppError('提现记录不存在', 404);
+    }
+
+    // 已经是终态的订单不再重复撤销，直接返回当前状态给前端
+    if (['success', 'failed', 'cancelled'].includes(withdrawal.status)) {
+      console.log('[撤销提现] 已是终态, 当前状态:', withdrawal.status);
+      return res.json({
+        success: true,
+        data: {
+          id: withdrawal.id,
+          amount: withdrawal.amount,
+          status: withdrawal.status,
+          out_batch_no: withdrawal.out_batch_no,
+          transfer_bill_no: withdrawal.transfer_bill_no,
+          fail_reason: withdrawal.fail_reason,
+          created_at: withdrawal.created_at,
+          completed_at: withdrawal.completed_at
+        }
+      });
+    }
+
+    // 构造微信支付服务实例，用于调用撤销接口
+    const wechatPayService = new WechatPayV3Service();
+
+    // 调用微信撤销转账 API，通知微信侧撤销该笔转账
+    const cancelResult = await wechatPayService.cancelTransferBill(outBatchNo);
+
+    console.log('[撤销提现] 微信返回:', cancelResult);
+
+    // 业务上：用户一旦取消，直接将本地状态标记为 cancelled
+    // 说明：微信侧可能短暂处于 CANCELING，但对用户来说已经视为“本次提现不会到账”
+    await withdrawal.update({
+      status: 'cancelled',
+      fail_reason: '用户取消',
+      completed_at: new Date()
+    });
+
+    // 返回最新状态给小程序，用于展示“已取消”结果
+    return res.json({
+      success: true,
+      data: {
+        id: withdrawal.id,
+        amount: withdrawal.amount,
+        status: 'cancelled',
+        out_batch_no: withdrawal.out_batch_no,
+        transfer_bill_no: cancelResult.transfer_bill_no || withdrawal.transfer_bill_no,
+        wechat_state: cancelResult.state,
+        created_at: withdrawal.created_at,
+        completed_at: withdrawal.completed_at
+      }
+    });
+  } catch (error) {
+    console.error('[撤销提现] 错误:', error);
+    next(error);
+  }
+};
+
 module.exports = exports;

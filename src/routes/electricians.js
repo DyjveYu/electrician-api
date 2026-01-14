@@ -119,4 +119,10 @@ router.get(
   ElectricianController.getWithdrawalStatus
 );
 
+router.post(
+  '/withdrawals/:outBatchNo/cancel',
+  authenticateToken,
+  ElectricianController.cancelWithdrawal
+);
+
 module.exports = router;

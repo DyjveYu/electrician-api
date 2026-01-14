@@ -415,51 +415,91 @@ class WechatPayV3Service {
       throw new Error(`转账失败: ${error.response?.data?.message || error.message}`);
     }
   }
-
 /**
  * ⭐ 查询转账单（商户单号查询）
  * 文档：https://pay.weixin.qq.com/doc/v3/merchant/4012716437
  * @param {string} outBillNo 商户单号
  * 添加到 WechatPayV3Service.js 中，放在 createTransferBill 方法之后
  */
-async queryTransferBill(outBillNo) {
-  // 沙箱环境模拟
-  if (this.isSandbox) {
-    console.log(`📱 测试环境查询转账单: ${outBillNo}`);
-    return {
-      state: 'SUCCESS',
-      out_bill_no: outBillNo,
-      transfer_bill_no: `mock_bill_${Date.now()}`,
-      success_time: new Date().toISOString()
-    };
+  /**
+   * 查询转账单状态（商户单号维度）
+   * 场景：确认收款成功后或回调中，根据商户单号拉取微信侧最新状态
+   */
+  async queryTransferBill(outBillNo) {
+    if (this.isSandbox) {
+      console.log(`📱 测试环境查询转账单: ${outBillNo}`);
+      return {
+        state: 'SUCCESS',
+        out_bill_no: outBillNo,
+        transfer_bill_no: `mock_bill_${Date.now()}`,
+        success_time: new Date().toISOString()
+      };
+    }
+
+    try {
+      // 微信文档路径：GET /v3/fund-app/mch-transfer/transfer-bills/out-bill-no/{out_bill_no}
+      const url = `/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/${outBillNo}`;
+      console.log(`🔍 查询转账单: GET ${url}`);
+
+      const response = await this.request('GET', url);
+
+      console.log('✅ 微信查询成功:', response.data);
+
+      return response.data;
+    } catch (error) {
+      console.error('❌ 微信查询转账单失败:', {
+        url: `/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/${outBillNo}`,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
+
+      const errorMsg = error.response?.data?.message || error.message;
+      throw new Error(`微信查询失败: ${errorMsg}`);
+    }
   }
 
-  try {
-    // ✅ 修复：完整的路径，包含 /transfer-bills/
-    const url = `/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/${outBillNo}`;
-    console.log(`🔍 查询转账单: GET ${url}`);
-    
-    const response = await this.request('GET', url);
-    
-    console.log(`✅ 微信查询成功:`, response.data);
-    
-    // 返回微信的原始响应
-    return response.data;
-    
-  } catch (error) {
-    console.error('❌ 微信查询转账单失败:', {
-      url: `/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/${outBillNo}`,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data
-    });
-    
-    // 抛出详细错误
-    const errorMsg = error.response?.data?.message || error.message;
-    throw new Error(`微信查询失败: ${errorMsg}`);
-  }
-}
+  /**
+   * 撤销转账单（商户单号维度）
+   * 场景：小程序拉起“确认收款”页面后，用户点击取消或叉掉时，商户需要主动撤销该笔转账
+   * 说明：撤销接口返回成功仅代表“撤销请求已受理”，以后续查询结果为最终状态
+   */
+  async cancelTransferBill(outBillNo) {
+    if (this.isSandbox) {
+      // 沙箱环境直接模拟撤销成功，避免真实请求微信侧
+      console.log(`📱 测试环境撤销转账单: ${outBillNo}`);
+      return {
+        out_bill_no: outBillNo,
+        transfer_bill_no: `mock_bill_${Date.now()}`,
+        state: 'CANCELLED',
+        update_time: new Date().toISOString()
+      };
+    }
 
+    try {
+      // 微信文档路径：POST /v3/fund-app/mch-transfer/transfer-bills/out-bill-no/{out_bill_no}/cancel
+      const url = `/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/${outBillNo}/cancel`;
+      console.log(`🚫 撤销转账单: POST ${url}`);
+
+      // 使用通用 V3 请求封装发送 POST 请求，自动带上签名等头部
+      const response = await this.request('POST', url);
+
+      console.log('✅ 撤销转账成功:', response.data);
+
+      // 原样返回微信应答，调用方可以读取 state 字段（CANCELING/CANCELLED）
+      return response.data;
+    } catch (error) {
+      console.error('❌ 微信撤销转账失败:', {
+        url: `/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/${outBillNo}/cancel`,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
+
+      const errorMsg = error.response?.data?.message || error.message;
+      throw new Error(`微信撤销失败: ${errorMsg}`);
+    }
+  }
 
   /**
    * 敏感字段加密 (使用微信支付公钥 RSA/OAEP/2048/SHA-1/MGF1)
