@@ -814,12 +814,40 @@ exports.cancelWithdrawal = async (req, res, next) => {
     console.log('[撤销提现] 微信返回:', cancelResult);
 
     // 业务上：用户一旦取消，直接将本地状态标记为 cancelled
-    // 说明：微信侧可能短暂处于 CANCELING，但对用户来说已经视为“本次提现不会到账”
-    await withdrawal.update({
-      status: 'cancelled',
-      fail_reason: '用户取消',
-      completed_at: new Date()
-    });
+    // 如数据库枚举未包含该值，尝试自动修复枚举并重试
+    try {
+      await withdrawal.update({
+        status: 'cancelled',
+        fail_reason: '用户取消',
+        completed_at: new Date()
+      });
+    } catch (dbErr) {
+      const isEnumTruncate =
+        dbErr?.name === 'SequelizeDatabaseError' &&
+        (dbErr?.parent?.sqlMessage?.includes("Data truncated for column 'status'") ||
+         dbErr?.parent?.code === 'WARN_DATA_TRUNCATED');
+      
+      if (isEnumTruncate) {
+        console.warn('[撤销提现] 检测到枚举值缺失，准备自动更新枚举: status 增加 cancelled');
+        // 尝试修改枚举定义，添加 cancelled
+        try {
+          await Withdrawal.sequelize.query(
+            "ALTER TABLE `Withdrawals` MODIFY COLUMN `status` ENUM('pending','processing','success','failed','cancelled') NOT NULL DEFAULT 'pending';"
+          );
+          console.log('[撤销提现] 枚举更新成功，重试状态更新');
+          await withdrawal.update({
+            status: 'cancelled',
+            fail_reason: '用户取消',
+            completed_at: new Date()
+          });
+        } catch (alterErr) {
+          console.error('[撤销提现] 更新枚举失败:', alterErr);
+          throw dbErr;
+        }
+      } else {
+        throw dbErr;
+      }
+    }
 
     // 返回最新状态给小程序，用于展示“已取消”结果
     return res.json({

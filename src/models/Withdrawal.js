@@ -18,7 +18,8 @@ const Withdrawal = sequelize.define('Withdrawal', {
     comment: '提现金额'
   },
   status: {
-    type: DataTypes.ENUM('pending', 'processing', 'success', 'failed'),
+    // 新增 'cancelled' 终态：用户取消或商户撤销后
+    type: DataTypes.ENUM('pending', 'processing', 'success', 'failed', 'cancelled'),
     allowNull: false,
     defaultValue: 'pending',
     comment: '提现状态'
