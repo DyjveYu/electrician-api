@@ -290,7 +290,10 @@ class OrderController {
         let displayText = '未知状态';
 
         // 交易关闭类
-        if (st === 'cancelled' || st === 'closed') {
+        if (st === 'cancelled') {
+          displayCode = 'cancelled';
+          displayText = '订单已取消';
+        } else if (st === 'closed') {
           displayCode = 'closed';
           displayText = '交易关闭';
         } else if (st === 'cancel_pending') {
