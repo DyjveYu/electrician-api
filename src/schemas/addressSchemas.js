@@ -106,7 +106,16 @@ const addressSchemas = {
           'string.empty': '联系人姓名不能为空',
           'string.max': '联系人姓名不能超过50个字符'
         }),
+      contact_name: Joi.string().trim().min(1).max(50)
+        .messages({
+          'string.empty': '联系人姓名不能为空',
+          'string.max': '联系人姓名不能超过50个字符'
+        }),
       contactPhone: Joi.string().pattern(/^1[3-9]\d{9}$/)
+        .messages({
+          'string.pattern.base': '请输入正确的手机号码'
+        }),
+      contact_phone: Joi.string().pattern(/^1[3-9]\d{9}$/)
         .messages({
           'string.pattern.base': '请输入正确的手机号码'
         }),
@@ -130,6 +139,16 @@ const addressSchemas = {
           'string.empty': '详细地址不能为空',
           'string.max': '详细地址不能超过255个字符'
         }),
+      detail: Joi.string().trim().min(1).max(255)
+        .messages({
+          'string.empty': '详细地址不能为空',
+          'string.max': '详细地址不能超过255个字符'
+        }),
+      detail_address: Joi.string().trim().min(1).max(255)
+        .messages({
+          'string.empty': '详细地址不能为空',
+          'string.max': '详细地址不能超过255个字符'
+        }),
       locationName: Joi.string().trim().min(1).max(100).allow('', null)
         .messages({
           'string.max': '位置名称不能超过100个字符'
@@ -148,7 +167,11 @@ const addressSchemas = {
           'number.min': '纬度值无效',
           'number.max': '纬度值无效'
         }),
-      isDefault: Joi.boolean()
+      isDefault: Joi.boolean(),
+      is_default: Joi.alternatives().try(
+        Joi.boolean(),
+        Joi.string().valid('true', 'false')
+      )
     }).min(1) // 至少需要一个字段
   },
 
