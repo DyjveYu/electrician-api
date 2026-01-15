@@ -118,6 +118,14 @@ class AuthController {
         console.log(`测试账号 ${phone} 登录，跳过验证码校验`);
       }
 
+      // 预检：如果提供了 openid，且该 openid 已绑定到其他手机号，则阻止登录/注册
+      if (openid && openid !== '') {
+        const existingUser = await User.findOne({ where: { openid } });
+        if (existingUser && existingUser.phone !== phone) {
+          throw new AppError('该微信已绑定其他手机号', 409);
+        }
+      }
+
       // 查找或创建用户
       let user = await User.findByPhone(phone);
 
@@ -200,11 +208,15 @@ class AuthController {
         });
       }
 
-      if (error.code === 'ER_DUP_ENTRY') {
-        return next({
-          status: 409,
-          message: '当前微信已注册'
-        });
+      if (
+        error?.name === 'SequelizeUniqueConstraintError' &&
+        Array.isArray(error.errors) &&
+        error.errors.some(e => e?.path === 'openid')
+      ) {
+        return next({ status: 409, message: '该微信已绑定其他手机号' });
+      }
+      if (error?.code === 'ER_DUP_ENTRY') {
+        return next({ status: 409, message: '该微信已绑定其他手机号' });
       }
 
       // 其他错误交给全局中间件
