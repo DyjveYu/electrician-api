@@ -90,18 +90,7 @@ router.post(
   OrderController.completeOrder
 );
 
-/**
- * @path /api/orders/:id/cancel
- * @desc 取消工单
- * @access 用户、电工
- */
-router.put(
-  '/:id/cancel',
-  authenticateToken,
-  requireRole(['user', 'electrician']),
-  validate(orderSchemas.cancelOrder),
-  OrderController.cancelOrder
-);
+
 
 /**
  * @path /api/orders/:id/confirm
@@ -180,4 +169,15 @@ router.post(
   OrderController.confirmCancelOrder
 );
 
-module.exports = router;
+module.exports = router;/**
+ * @path /api/orders/:id/cancel
+ * @desc 取消工单
+ * @access 用户、电工
+ */
+router.put(
+  '/:id/cancel',
+  authenticateToken,
+  requireRole(['user', 'electrician']),
+  validate(orderSchemas.cancelOrder),
+  OrderController.cancelOrder
+);

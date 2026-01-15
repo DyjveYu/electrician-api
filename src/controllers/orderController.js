@@ -1060,7 +1060,7 @@ class OrderController {
       }
 
       // 验证工单状态
-      const validStatuses = ['pending', 'accepted'];
+      const validStatuses = ['pending_payment'];
       if (!validStatuses.includes(order.status)) {
         throw new AppError(`工单当前状态为 ${order.status}，无法取消`, 400);
       }
