@@ -1067,6 +1067,7 @@ class OrderController {
 
       // 使用事务更新工单状态
       await sequelize.transaction(async (t) => {
+        const prevStatus = order.status;
         // 更新工单
         await order.update({
           status: 'cancelled',
@@ -1077,9 +1078,10 @@ class OrderController {
         // 创建状态日志
         await OrderStatusLog.create({
           order_id: order.id,
-          status: 'cancelled',
+          from_status: prevStatus,
+          to_status: 'cancelled',
           operator_id: userId,
-          operator_role: 'user',
+          operator_type: 'user',
           remark: `用户取消工单，原因: ${cancel_reason}`,
           created_at: now
         }, { transaction: t });
