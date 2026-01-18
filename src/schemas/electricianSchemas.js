@@ -19,9 +19,14 @@ module.exports = {
       .pattern(/^[1-9]\d{5}(18|19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dXx]$/)
       .required()
       .messages({ 'string.pattern.base': '身份证号格式不正确' }),
+
+    id_card_front: Joi.string().uri().allow(null, ''),
+    id_card_back: Joi.string().uri().allow(null, ''),
       
     electrician_cert_no: Joi.string().required()
       .messages({ 'any.required': '电工证编号不能为空' }),
+
+    certificate_img: Joi.string().uri().allow(null, ''),
       
     cert_start_date: Joi.date().required()
       .messages({ 'any.required': '证书开始日期不能为空' }),

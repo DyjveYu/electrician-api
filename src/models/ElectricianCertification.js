@@ -43,11 +43,26 @@ const ElectricianCertification = sequelize.define('ElectricianCertification', {
       is: /^[1-9]\d{5}(18|19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dXx]$/
     }
   },
+
+  id_card_front: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+
+  id_card_back: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
   
   electrician_cert_no: {
     type: DataTypes.STRING(50),
     allowNull: false,
     comment: '电工证编号'
+  },
+
+  certificate_img: {
+    type: DataTypes.STRING(255),
+    allowNull: true
   },
   
   cert_start_date: {

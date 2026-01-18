@@ -322,10 +322,9 @@ class AdminController {
         nickname: userInfo.nickname,
         avatar: userInfo.avatar,
         user_created_at: userInfo.created_at,
-        // 证件照片字段（如果存在）
         id_card_front: plainCert.id_card_front,
         id_card_back: plainCert.id_card_back,
-        license_photo: plainCert.license_photo
+        license_photo: plainCert.certificate_img
       };
 
       res.success(result);
