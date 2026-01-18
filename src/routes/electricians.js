@@ -52,6 +52,14 @@ router.get(
   ElectricianController.getCertificationStatus
 );
 
+router.put(
+  '/certification/reapply',
+  authenticateToken,
+  rateLimiter({ max: 5, windowMs: 60000 }),
+  validate(electricianCertificationSchema),
+  ElectricianController.reapplyCertification
+);
+
 /**
  * @route GET /api/electricians/income
  * @desc 获取电工收入详情

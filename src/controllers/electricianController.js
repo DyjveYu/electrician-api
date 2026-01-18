@@ -87,6 +87,48 @@ exports.getCertificationStatus = async (req, res, next) => {
     next(error);
   }
 };
+/**
+ * 重新认证
+ */
+exports.reapplyCertification = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const {
+      work_types,
+      real_name,
+      id_card,
+      electrician_cert_no,
+      cert_start_date,
+      cert_end_date
+    } = req.body;
+    const certification = await ElectricianCertification.findOne({
+      where: { user_id: userId }
+    });
+    if (!certification) {
+      throw new AppError('未找到认证记录，请先提交认证申请', 404);
+    }
+    if (certification.status === 'pending') {
+      throw new AppError('您的认证申请正在审核中，请勿重复提交', 400);
+    }
+    await certification.update({
+      work_types,
+      real_name,
+      id_card,
+      electrician_cert_no,
+      cert_start_date,
+      cert_end_date,
+      status: 'pending',
+      reject_reason: null
+    });
+    res.status(200).json({
+      success: true,
+      message: '重新认证申请已提交，请等待审核',
+      data: certification
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 /**
  * ⭐ 修复：计算电工收入余额（公共函数）
