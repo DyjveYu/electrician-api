@@ -916,6 +916,13 @@ class OrderController {
         let nextStatus = 'completed';
         let statusRemark = '用户完成评价，订单已完成';
 
+        // 2026-02-03 修改：非五星评价不关闭订单，状态仍保持待评价（pending_review）
+        // 说明：按需求仅调整订单状态，其余评价/通知/日志等流程保持原有结构
+        if (Number(rating) !== 5) {
+          nextStatus = 'pending_review';
+          statusRemark = `用户评价为${rating}星，订单保持待评价，等待进一步处理`;
+        }
+
         // 5星评价且有电工接单 -> 触发转账
         if (Number(rating) === 5 && order.electrician_id) {
           try {
@@ -1002,13 +1009,18 @@ class OrderController {
 
         // 通知电工订单完成且用户已评价
         if (order.electrician_id) {
-          const msgContent = transferSuccess
-            ? `工单 ${order.order_no} 用户五星好评，资金已自动结算至您的零钱。`
-            : `工单 ${order.order_no} 用户已完成评价，订单关闭。`;
+          // 2026-02-03 修改：非五星评价时订单不关闭，提示“待处理”
+          const msgContent = nextStatus === 'pending_review'
+            ? `工单 ${order.order_no} 用户已完成评价（${rating}星），订单待处理。`
+            : (transferSuccess
+              ? `工单 ${order.order_no} 用户五星好评，资金已自动结算至您的零钱。`
+              : `工单 ${order.order_no} 用户已完成评价，订单关闭。`);
 
           await Message.create({
             user_id: order.electrician_id,
-            title: transferSuccess ? '订单已结算' : '订单已完成',
+            title: nextStatus === 'pending_review'
+              ? '订单待处理'
+              : (transferSuccess ? '订单已结算' : '订单已完成'),
             content: msgContent,
             type: 'order',
             reference_id: order.id,
@@ -1019,7 +1031,10 @@ class OrderController {
 
         await transaction.commit();
         return res.success({
-          message: transferSuccess ? '评价成功，资金已结算给电工' : '评价成功，订单已完成',
+          // 2026-02-03 修改：非五星评价时订单状态仍为 pending_review
+          message: nextStatus === 'pending_review'
+            ? '评价成功，订单待处理'
+            : (transferSuccess ? '评价成功，资金已结算给电工' : '评价成功，订单已完成'),
           order_id: order.id
         });
       } catch (err) {
