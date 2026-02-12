@@ -150,19 +150,12 @@ exports.reapplyCertification = async (req, res, next) => {
  * 分别计算：总收入、已提现、锁定中（处理中）、可用余额
  */
 async function calculateBalance(electricianId, transaction = null) {
-  // 1. 计算总收入（5星好评的已完成订单）
+  // 1. ✅ 修改：计算总收入（已结算的订单）
   const eligibleOrders = await Order.findAll({
     where: {
       electrician_id: electricianId,
-      status: 'completed'
+      status: 'completed_settled'  // ✅ 直接查已结算状态
     },
-    include: [{
-      model: Review,
-      as: 'review',
-      where: { rating: 5 },
-      attributes: [],
-      required: true
-    }],
     attributes: ['id'],
     transaction
   });
@@ -182,7 +175,7 @@ async function calculateBalance(electricianId, transaction = null) {
     totalIncome = incomeResult || 0;
   }
 
-  // 2. ⭐ 修复：只计算成功的提现作为已提现金额
+  // 2. 计算成功的提现
   const successWithdrawn = await Withdrawal.sum('amount', {
     where: {
       electrician_id: electricianId,
@@ -192,7 +185,7 @@ async function calculateBalance(electricianId, transaction = null) {
   });
   const withdrawnAmount = successWithdrawn || 0;
 
-  // 3. ⭐ 新增：计算处理中的提现作为锁定金额
+  // 3. 计算处理中的提现（锁定金额）
   const processingWithdrawn = await Withdrawal.sum('amount', {
     where: {
       electrician_id: electricianId,
@@ -202,7 +195,7 @@ async function calculateBalance(electricianId, transaction = null) {
   });
   const lockedAmount = processingWithdrawn || 0;
 
-  // 4. ⭐ 修复：可用余额 = 总收入 - 已提现 - 锁定中
+  // 4. 可用余额 = 总收入 - 已提现 - 锁定中
   const availableBalance = Number((totalIncome - withdrawnAmount - lockedAmount).toFixed(2));
 
   return {

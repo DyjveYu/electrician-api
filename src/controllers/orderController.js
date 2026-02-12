@@ -337,15 +337,31 @@ class OrderController {
           displayCode = 'in_progress';
           displayText = '维修中';
         }
-        // 已完成/待评价
-        else if (st === 'completed') {
-          if (plainOrder.has_review) {
-            displayCode = 'completed';
-            displayText = '已完成';
-          } else {
-            displayCode = 'pending_review';
-            displayText = '待评价';
-          }
+        // 待评价
+        // 以下2026.2.12新增的状态展示逻辑，确保在订单列表页也能正确显示待二次评价状态
+        else if (st === 'pending_review') {
+          displayCode = 'pending_review';
+          displayText = '待评价';
+        }
+        // 待二次评价
+        else if (st === 'pending_second_review') {
+          displayCode = 'pending_second_review';
+          displayText = '待二次评价';
+        }
+        // 已完成已结算
+        else if (st === 'completed_settled') {
+          displayCode = 'completed_settled';
+          displayText = '已完成已结算';
+        }
+        // 已完成结算失败
+        else if (st === 'completed_settle_failed') {
+          displayCode = 'completed_settle_failed';
+          displayText = '已完成结算失败';
+        }
+        // 已完成不结算
+        else if (st === 'completed_unsettle') {
+          displayCode = 'completed_unsettle';
+          displayText = '已完成不结算';
         }
 
         plainOrder.display_status = displayCode;
@@ -530,88 +546,7 @@ class OrderController {
         }, { transaction: t });
       });
 
-      // ==========================================
-      // TEST START: 临时测试自动转账功能 (放在接单事务提交之后)
-      // ==========================================
-      try {
-        console.log('接单成功，触发测试转账逻辑...');
-        // 1. 获取电工信息（OpenID）
-        const electrician = await User.findByPk(electricianId);
-        
-        if (electrician && electrician.openid) {
-          // 2. 计算转账金额（统计该订单所有成功支付的金额：仅预付款）
-          // 接单时通常只有预付款
-          const paidPayments = await Payment.findAll({
-            where: {
-              order_id: order.id,
-              status: 'success',
-              type: 'prepay'
-            }
-          });
 
-          const totalAmount = paidPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-          console.log(`待转账总金额: ${totalAmount}`);
-
-          if (totalAmount > 0) {
-            // 3. 发起转账
-            const wechatPayService = new WechatPayV3Service();
-            // 缩短批次号以满足32字符限制：T{timestamp}_{orderId} (13+1+N)
-            const out_batch_no = `T${Date.now()}${String(order.id).padStart(6, '0')}`;
-            
-            const transferResult = await wechatPayService.createTransfer({
-              out_batch_no: out_batch_no,
-              batch_name: `订单${order.order_no}接单测试结算`,
-              batch_remark: '接单即转账测试',
-              total_amount: totalAmount,
-              openid: electrician.openid
-            });
-
-            if (transferResult.success) {
-              console.log('转账成功');
-              
-              // 记录转账记录 (新事务)
-              await Payment.create({
-                order_id: order.id,
-                user_id: order.user_id,
-                amount: totalAmount,
-                payment_method: 'wechat',
-                type: 'transfer',
-                status: 'success',
-                out_trade_no: transferResult.out_batch_no,
-                transaction_id: transferResult.batch_id,
-                paid_at: new Date()
-              });
-
-              // 更新订单状态为已结算
-              await Order.update({
-                status: 'settled',
-                // completed_at: new Date() // 可选
-              }, { where: { id: order.id } });
-
-              await OrderStatusLog.create({
-                order_id: order.id,
-                from_status: 'accepted',
-                to_status: 'settled',
-                operator_id: electricianId,
-                operator_type: 'electrician',
-                remark: '测试转账成功，自动结算'
-              });
-            } else {
-               console.error('转账API返回失败');
-            }
-          } else {
-            console.warn(`订单 ${order.id} 支付总额为0，跳过转账`);
-          }
-        } else {
-          console.warn(`电工 ${electricianId} 未绑定OpenID，无法转账`);
-        }
-      } catch (transferError) {
-        console.error('自动转账失败:', transferError);
-        // 不阻断接单响应，只记录错误
-      }
-      // ==========================================
-      // TEST END
-      // ==========================================
 
       res.success({
         message: '接单成功，请核实服务地址'
@@ -790,85 +725,7 @@ class OrderController {
         }, { transaction: t });
       });
 
-      // ==========================================
-      // TEST START: 临时测试自动转账功能 (放在接单事务提交之后)
-      // ==========================================
-      try {
-        console.log('接单成功，触发测试转账逻辑...');
-        // 1. 获取电工信息（OpenID）
-        const electrician = await User.findByPk(electricianId);
-        
-        if (electrician && electrician.openid) {
-          // 2. 计算转账金额（统计该订单所有成功支付的金额：预付款）
-          // 接单时通常只有预付款
-          const paidPayments = await Payment.findAll({
-            where: {
-              order_id: order.id,
-              status: 'success',
-              type: { [Op.in]: ['prepay'] }
-            }
-          });
 
-          const totalAmount = paidPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-          console.log(`待转账总金额: ${totalAmount}`);
-
-          if (totalAmount > 0) {
-            // 3. 发起转账
-            const wechatPayService = new WechatPayV3Service();
-            const transferResult = await wechatPayService.createTransfer({
-              out_batch_no: `TR_${order.order_no}_${Date.now()}`,
-              batch_name: `订单${order.order_no}接单测试结算`,
-              batch_remark: '接单即转账测试',
-              total_amount: totalAmount,
-              openid: electrician.openid
-            });
-
-            if (transferResult.success) {
-              console.log('转账成功');
-              
-              // 记录转账记录 (新事务)
-              await Payment.create({
-                order_id: order.id,
-                user_id: order.user_id,
-                amount: totalAmount,
-                payment_method: 'wechat',
-                type: 'transfer',
-                status: 'success',
-                out_trade_no: transferResult.out_batch_no,
-                transaction_id: transferResult.batch_id,
-                paid_at: new Date()
-              });
-
-              // 更新订单状态为已结算
-              await Order.update({
-                status: 'settled',
-                // completed_at: new Date() // 可选
-              }, { where: { id: order.id } });
-
-              await OrderStatusLog.create({
-                order_id: order.id,
-                from_status: 'accepted',
-                to_status: 'settled',
-                operator_id: electricianId,
-                operator_type: 'electrician',
-                remark: '测试转账成功，自动结算'
-              });
-            } else {
-               console.error('转账API返回失败');
-            }
-          } else {
-            console.warn(`订单 ${order.id} 支付总额为0，跳过转账`);
-          }
-        } else {
-          console.warn(`电工 ${electricianId} 未绑定OpenID，无法转账`);
-        }
-      } catch (transferError) {
-        console.error('自动转账失败:', transferError);
-        // 不阻断接单响应，只记录错误
-      }
-      // ==========================================
-      // TEST END
-      // ==========================================
 
       res.success({
         message: '服务已完成，订单进入待评价'
@@ -883,6 +740,11 @@ class OrderController {
    * @route PUT /api/orders/:id/review
    * @access 用户角色
    */
+  /**
+ * 用户评价订单
+ * @route PUT /api/orders/:id/review
+ * @access 用户角色
+ */
   static async reviewOrder(req, res, next) {
     try {
       const { id } = req.params;
@@ -904,112 +766,106 @@ class OrderController {
       if (order.user_id !== userId) {
         return res.error('无权操作此工单', 403);
       }
-      if (order.status !== 'pending_review') {
-        return res.error('当前状态不允许评价，需为待评价', 400);
+
+      // 状态校验：只允许 pending_review 和 pending_second_review 状态评价
+      if (order.status !== 'pending_review' && order.status !== 'pending_second_review') {
+        return res.error('当前状态不允许评价', 400);
       }
 
-      // 开始事务并更新评价与状态
+      // 判断是首次评价还是二次评价
+      const isFirstReview = order.status === 'pending_review';
+      const isSecondReview = order.status === 'pending_second_review';
+      const isFiveStarRating = Number(rating) === 5;
+
+      // 开始事务
       const transaction = await sequelize.transaction();
-      let transferSuccess = false; // 标记转账是否成功
 
       try {
-        let nextStatus = 'completed';
-        let statusRemark = '用户完成评价，订单已完成';
+        let nextStatus = 'completed_unsettle';
+        let statusRemark = '';
+        let messageTitle = '';
+        let messageContent = '';
 
-        // 5星评价且有电工接单 -> 触发转账
-        if (Number(rating) === 5 && order.electrician_id) {
-          try {
-            // 1. 获取电工信息（OpenID）
-            const electrician = await User.findByPk(order.electrician_id);
-            if (electrician && electrician.openid) {
-              // 2. 计算转账金额（统计该订单所有成功支付的金额：预付款+维修费）
-              const paidPayments = await Payment.findAll({
-                where: {
-                  order_id: order.id,
-                  status: 'success',
-                  type: { [Op.in]: ['prepay', 'repair'] }
-                }
-              });
-
-              const totalAmount = paidPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-
-              if (totalAmount > 0) {
-                // 3. 发起转账
-                const wechatPayService = new WechatPayV3Service();
-                const transferResult = await wechatPayService.createTransfer({
-                  out_batch_no: `TR_${order.order_no}_${Date.now()}`,
-                  batch_name: `订单${order.order_no}结算`,
-                  batch_remark: '用户五星好评自动结算',
-                  total_amount: totalAmount,
-                  openid: electrician.openid
-                });
-
-                if (transferResult.success) {
-                  // 转账成功，状态改为已结算
-                  nextStatus = 'settled';
-                  statusRemark = '用户五星好评，系统自动转账成功，订单已结算';
-                  transferSuccess = true;
-
-                  // 记录转账记录
-                  await Payment.create({
-                    order_id: order.id,
-                    user_id: order.user_id, // 记录为用户发起的（间接）
-                    amount: totalAmount,
-                    payment_method: 'wechat',
-                    type: 'transfer',
-                    status: 'success',
-                    out_trade_no: transferResult.out_batch_no, // 使用批次号作为订单号
-                    transaction_id: transferResult.batch_id,
-                    paid_at: now
-                  }, { transaction });
-                }
-              } else {
-                console.warn(`订单 ${order.id} 支付总额为0，跳过转账`);
-              }
-            } else {
-              console.warn(`电工 ${order.electrician_id} 未绑定OpenID，无法转账`);
-            }
-          } catch (transferError) {
-            console.error('自动转账失败:', transferError);
-            // 转账失败，状态保持 completed，记录错误日志，不阻断评价流程
-            // 可以在此处记录系统消息通知管理员或记录专门的错误日志表
+        // === 五星评价逻辑（首次或二次都一样）===
+        if (isFiveStarRating && order.electrician_id) {
+          // 五星评价直接标记为已结算
+          // 不需要调用任何"结算函数"，状态本身就代表已结算
+          nextStatus = 'completed_settled';
+          statusRemark = isFirstReview
+            ? '用户首次五星好评，订单已结算'
+            : '用户二次五星好评，订单已结算';
+          messageTitle = '订单已结算';
+          messageContent = `工单 ${order.order_no} 用户${isFirstReview ? '首次' : '二次'}五星好评，订单费用已结算，可前往钱包提现。`;
+        }
+        // === 非五星评价逻辑 ===
+        else {
+          if (isFirstReview) {
+            // 首次非五星：进入 pending_second_review 状态，允许二次评价
+            nextStatus = 'pending_second_review';
+            statusRemark = `用户首次评价为${rating}星，订单进入待二次评价状态`;
+            messageTitle = '订单待处理';
+            messageContent = `工单 ${order.order_no} 用户已完成首次评价（${rating}星），订单待处理，用户可再次评价。`;
+          } else if (isSecondReview) {
+            // 二次非五星：订单完成不结算
+            nextStatus = 'completed_unsettle';
+            statusRemark = `用户二次评价为${rating}星，订单已完成但不结算`;
+            messageTitle = '订单已完成';
+            messageContent = `工单 ${order.order_no} 用户已完成二次评价（${rating}星），订单已关闭，不进行结算。`;
           }
         }
 
-        await order.update({
+        // 更新订单状态
+        const updateData = {
           status: nextStatus,
-          completed_at: now,
           reviewed_at: now
-        }, { transaction });
+        };
 
-        // 创建评价记录（用于电工评分统计等）
-        await Review.create({
-          order_id: order.id,
-          user_id: userId,
-          electrician_id: order.electrician_id,
-          rating,
-          content: comment || null
-        }, { transaction });
+        // 只有订单真正完成时才设置 completed_at
+        if (nextStatus !== 'pending_second_review') {
+          updateData.completed_at = now;
+        }
 
+        await order.update(updateData, { transaction });
+
+        // 更新或创建评价记录
+        const existingReview = await Review.findOne({
+          where: { order_id: order.id }
+        });
+
+        if (existingReview) {
+          // 更新已有评价（二次评价场景）
+          await existingReview.update({
+            rating,
+            content: comment || null,
+            updated_at: now
+          }, { transaction });
+        } else {
+          // 创建新评价（首次评价场景）
+          await Review.create({
+            order_id: order.id,
+            user_id: userId,
+            electrician_id: order.electrician_id,
+            rating,
+            content: comment || null
+          }, { transaction });
+        }
+
+        // 记录状态日志
         await OrderStatusLog.create({
           order_id: order.id,
-          from_status: 'pending_review',
+          from_status: order.status,
           to_status: nextStatus,
           operator_id: userId,
           operator_type: 'user',
           remark: statusRemark
         }, { transaction });
 
-        // 通知电工订单完成且用户已评价
+        // 通知电工
         if (order.electrician_id) {
-          const msgContent = transferSuccess
-            ? `工单 ${order.order_no} 用户五星好评，资金已自动结算至您的零钱。`
-            : `工单 ${order.order_no} 用户已完成评价，订单关闭。`;
-
           await Message.create({
             user_id: order.electrician_id,
-            title: transferSuccess ? '订单已结算' : '订单已完成',
-            content: msgContent,
+            title: messageTitle,
+            content: messageContent,
             type: 'order',
             reference_id: order.id,
             is_read: false,
@@ -1018,9 +874,24 @@ class OrderController {
         }
 
         await transaction.commit();
+
+        // 根据评价情况返回不同提示
+        let responseMessage = '';
+        if (isFirstReview && !isFiveStarRating) {
+          responseMessage = '评价成功，您还可以再次修改评价';
+        } else if (isSecondReview && !isFiveStarRating) {
+          responseMessage = '评价成功，订单已完成';
+        } else if (nextStatus === 'completed_settled') {
+          responseMessage = '评价成功，费用已结算给电工';
+        } else {
+          responseMessage = '评价成功，订单已完成';
+        }
+
         return res.success({
-          message: transferSuccess ? '评价成功，资金已结算给电工' : '评价成功，订单已完成',
-          order_id: order.id
+          message: responseMessage,
+          order_id: order.id,
+          can_review_again: nextStatus === 'pending_second_review',
+          current_status: nextStatus
         });
       } catch (err) {
         await transaction.rollback();
